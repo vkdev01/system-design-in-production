@@ -1,0 +1,38 @@
+# Chapter 14: fan-out. Scale on Kafka lag, never on CPU -- a fan-out worker is
+# idle whenever it is keeping up, and busy for hours after a backlog.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: fanout-push, namespace: feed }
+spec:
+  replicas: 40
+  selector: { matchLabels: { app: fanout-push } }
+  template:
+    metadata:
+      labels: { app: fanout-push }
+      annotations: { prometheus.io/scrape: "true", prometheus.io/port: "9090" }
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/example/fanout:2.1.0
+          args: ["--batch=500", "--tier=push", "--trim=800", "--max-lag=5s"]
+          env:
+            - { name: KAFKA_BROKERS, value: kafka-0.kafka:9092 }
+            - { name: TIMELINE_URL, valueFrom: { secretKeyRef: { name: feed, key: timeline-url } } }
+          resources:
+            requests: { cpu: "1", memory: 512Mi }
+            limits: { memory: 1Gi }
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata: { name: fanout-push, namespace: feed }
+spec:
+  scaleTargetRef: { name: fanout-push }
+  minReplicaCount: 8
+  maxReplicaCount: 120
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka-0.kafka:9092
+        consumerGroup: fanout-push
+        topic: post.created
+        lagThreshold: "50000"

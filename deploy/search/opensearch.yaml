@@ -1,0 +1,40 @@
+# Chapter 15: search cluster. Heap <= 50% of RAM and never above 31 GB; the rest
+# is filesystem cache, which Lucene needs more than it needs heap.
+apiVersion: opensearch.org/v1
+kind: OpenSearchCluster
+metadata: { name: docs-search, namespace: search }
+spec:
+  general:
+    version: 2.15.0
+    httpPort: 9200
+    serviceName: docs-search
+  dashboards: { enable: false }
+  nodePools:
+    - component: masters
+      replicas: 3
+      diskSize: 20Gi
+      resources:
+        requests: { cpu: "1", memory: 2Gi }
+        limits: { memory: 2Gi }
+    - component: data
+      replicas: 3
+      diskSize: 200Gi
+      resources:
+        requests: { cpu: "4", memory: 16Gi }
+        limits: { memory: 16Gi }
+      jvm: "-Xms8g -Xmx8g"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: reindex, namespace: search }
+spec:
+  schedule: "0 4 * * 0"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: reindex
+              image: ghcr.io/example/reindex:1.0.0
+              args: ["--from=docs-v3", "--to=docs-v4", "--alias=docs-current"]

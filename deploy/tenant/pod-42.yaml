@@ -1,0 +1,30 @@
+# Chapter 17: one tenant pod. The NetworkPolicy is the isolation: egress is
+# restricted to the pod's own namespace, so a cross-pod call fails loudly.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pod-42
+  labels: { tenant-pod: "42" }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: deny-cross-pod, namespace: pod-42 }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { role: app } }
+  egress:
+    - to:
+        - namespaceSelector: { matchLabels: { tenant-pod: "42" } }
+    - to:
+        - namespaceSelector: { matchLabels: { name: kube-system } }
+      ports: [{ protocol: UDP, port: 53 }]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: mysql, namespace: pod-42 }
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: mysql } }

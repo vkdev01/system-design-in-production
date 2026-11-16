@@ -2,7 +2,7 @@
 
 You cannot design a system you cannot size. This page is the arithmetic kit for
 the rest of the manual: unit conversions, hardware limits, and the soft ceilings
-of the databases and brokers these thirteen chapters use. Everything is either a
+of the databases and brokers these nineteen chapters use. Everything is either a
 published figure (linked in [Appendix C](../appendices/sources.md)) or arithmetic
 you can redo on paper.
 

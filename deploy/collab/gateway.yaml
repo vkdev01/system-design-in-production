@@ -1,0 +1,44 @@
+# Chapter 18: one process per document. Sharding by document id makes stickiness
+# inherent -- there is no session store to lose.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: collab-doc, namespace: collab }
+spec:
+  serviceName: collab-doc-headless
+  replicas: 12
+  selector: { matchLabels: { app: collab-doc } }
+  template:
+    metadata: { labels: { app: collab-doc } }
+    spec:
+      containers:
+        - name: doc
+          image: ghcr.io/example/collab-doc:3.0.0
+          args: ["--idle-evict=10m", "--snapshot-ops=1000", "--snapshot-dir=/data"]
+          resources:
+            requests: { cpu: "1", memory: 1Gi }
+            limits: { memory: 2Gi }
+          volumeMounts: [{ name: snapshots, mountPath: /data }]
+  volumeClaimTemplates:
+    - metadata: { name: snapshots }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: 50Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: collab-gateway, namespace: collab }
+spec:
+  replicas: 6
+  selector: { matchLabels: { app: collab-gateway } }
+  template:
+    metadata: { labels: { app: collab-gateway } }
+    spec:
+      containers:
+        - name: gateway
+          image: ghcr.io/example/collab:3.0.0
+          args: ["--doc-shards=4096", "--presence-hz=10"]
+          env:
+            - { name: DOC_PROCESS_URL, value: "collab-doc-headless.collab:7000" }
+          resources:
+            requests: { cpu: "2", memory: 2Gi }
+            limits: { memory: 4Gi }

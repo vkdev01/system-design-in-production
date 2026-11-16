@@ -52,7 +52,7 @@ managed AWS services where a team of ten would sensibly use them.
 ## Repo layout
 
 ```
-docs/            the manual: foundations, thirteen chapters, three appendices
+docs/            the manual: foundations, nineteen chapters, three appendices
 code/            runnable prototypes, one directory per chapter
 deploy/          Kubernetes manifests, Terraform modules, compose files
 site_builder/    this site: build.py, templates, stylesheet, scripts

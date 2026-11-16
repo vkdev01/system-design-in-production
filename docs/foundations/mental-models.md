@@ -1,7 +1,7 @@
 # The 9 mental models
 
 Every chapter in this manual is a variation on nine ideas. Learn these and you can
-rebuild any of the nine systems from first principles in an interview, because you
+rebuild any of the nineteen systems from first principles in an interview, because you
 will be deriving the design instead of recalling it.
 
 Each model below has: the one-sentence claim, the symptom you see when you violate
@@ -247,7 +247,7 @@ deploy never takes two ring members at once. Chapter
 ## The two numbers rule
 
 Before you draw anything, get two numbers: **peak QPS** and **p99 budget**. Every
-design decision in these thirteen chapters is downstream of those two numbers. When an
+design decision in these nineteen chapters is downstream of those two numbers. When an
 interviewer gives you vague requirements, propose them yourself and say why:
 
 > "Let me assume 50 million daily active users, 40 messages per user per day, with

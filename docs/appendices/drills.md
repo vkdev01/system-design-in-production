@@ -5,7 +5,7 @@ can say the answer in two minutes. This appendix is the cheat sheet for both.
 
 ---
 
-## Part 1 — The thirteen scripts, condensed
+## Part 1 — The nineteen scripts, condensed
 
 Each is the two-minute answer with the numbers kept and the prose trimmed. Read
 these the night before an interview.
@@ -215,6 +215,91 @@ these the night before an interview.
 > $135 plus $40 to judge, ten minutes at fifty concurrent workers — nightly,
 > with a 2,000-example subset on pull requests.
 
+### 14 · News feed
+
+> A feed is a materialised join and you choose where to pay. Fan-out on write
+> with a median of 150 followers is 150 inserts per post — at 1,000 posts a
+> second, 150,000 inserts a second. The tail breaks it: one account with 50M
+> followers is 50M inserts, and two such posts a second is 10⁸ inserts a second.
+> So: push below a threshold (100k followers), pull above it — a celebrity post
+> is one write into that author's recent list, merged at read time. The read path
+> takes the pushed head from a sorted set, merges at most eight celebrity lists,
+> does a bounded k-way merge for twenty items, and hydrates from a post cache.
+> Capping the merge at eight is the invariant: per-request cost must never depend
+> on someone's follow graph. Numbers: 60k reads/s × 6 KB = 360 MB/s of egress, so
+> pages are cached rendered; a full timeline per reader would be 4.8 TB of Redis,
+> the head-only version is 240 GB and covers 95% of page views.
+
+### 15 · Search
+
+> An inverted index plus a bounded top-k. Ten million documents at 500 terms each
+> is five billion postings — about 7.5 GB compressed, 22 GB with positions — so
+> sharding is about latency, not capacity. Writes are append-only segments:
+> refresh every second makes a document searchable, commit every ten makes it
+> durable, and those are different knobs. Deletes are tombstones until a merge,
+> which is why segment count is the health metric nobody watches. A query can
+> match a million documents, so cost must be proportional to k: intersect posting
+> lists rarest-term-first, push scores into a bounded heap of twenty per shard,
+> merge the shard heaps. Ranking is BM25 — term frequency saturating at k1,
+> normalised by length with b, weighted by IDF. Typeahead gets its own 20 ms
+> budget, so one shard or edge n-grams, never a scatter-gather.
+
+### 16 · The cache tier
+
+> Miss rate times read rate is database load. At 100k reads a second, 1% of
+> misses is 1,000 queries a second; 10% is 10,000 and an outage. Published
+> memcache numbers: a healthy wildcard pool at 1.76% miss, a replicated hot pool
+> at 0.053%, an app pool at 7.85% — close to the line. Four mechanisms for four
+> failures: leases for stampedes (one caller queries, the rest wait 50 ms),
+> delete-not-set for stale writes, key replication plus a 1 s local cache for hot
+> keys, and a gutter pool for a cold region. Consistent hashing in the client so a
+> node loss moves 1/N of keys, jittered TTLs so expiries do not synchronise, and a
+> breaker whose job is to protect the database. The cache is never the source of
+> truth: flushing it is a performance event, not a data event.
+
+### 17 · Multi-tenant isolation
+
+> Isolation is a routing problem. Every tenant gets exactly one pod — an isolated
+> stack of app servers, MySQL, Redis and workers — and every unit of work belongs
+> to exactly one pod. With 100 pods a failure costs 1% of tenants instead of
+> everyone. A load-balancer component (Sorting Hat) resolves tenant to pod from a
+> versioned table and stamps a header; app servers are shared but may only use
+> that pod. No synchronous cross-pod calls, ever — cross-tenant features become
+> async per-pod exports. Shopify's history is the argument: sharding bought
+> capacity but any shard down broke the platform, and one shared Redis took the
+> whole site down. A Pod Mover evacuates a pod in about a minute: freeze five
+> seconds, copy, dual-write the gap, flip the routing version, verify, unfreeze.
+> Watch cross-pod requests (must be zero) and pod skew (under 2×).
+
+### 18 · Collaborative editing
+
+> Convergence, with a central sequencer rather than a full CRDT. One process per
+> document; changes apply optimistically on the client; last-writer-wins per
+> property with the server's arrival order as the tiebreak — so no timestamps and
+> no vector clocks. Object identity survives moves: reparent writes a parent link
+> on the child rather than recreating it. Ordering inside a parent is fractional —
+> a position between 0 and 1 at the average of its neighbours — so inserting never
+> renumbers siblings; about fifty inserts in one gap before a local rebalance. The
+> server does the one check a client cannot: reject a parent link that closes a
+> cycle. Numbers: 200 editors × 2 ops/s = 400 ops/s per document at 200 B, small
+> enough for one process per document; presence throttled to 10 Hz because cursors
+> cost more than edits; reconnect is download-and-re-apply because a 1 MB snapshot
+> beats replaying thousands of ops.
+
+### 19 · Multi-region active-active
+
+> Multi-region is a latency problem first. Mumbai–Singapore is 55–75 ms and
+> Mumbai–US is over 200, so a 200 ms write budget allows two or three cross-region
+> hops and no more — synchronous replication is out. Active-active with
+> home-region ownership: every key has one home that accepts writes (a hash, no
+> lookup), reads are local everywhere and may be stale by the replication lag, and
+> a cross-region read is an explicit 70 ms opt-in. That makes the RPO a chosen
+> number — the 100–500 ms lag — and the failover script refuses to run if the peer
+> is further behind. 99.99% is 52.6 minutes a year: two real failovers are
+> affordable, flapping is not. Detection is 30 s of health checks plus a 60 s TTL,
+> so ~90 s to shift traffic. One invariant: one home per key, and freeze the old
+> region's writes before promoting.
+
 ---
 
 ## Part 2 — The follow-up matrix
@@ -306,3 +391,8 @@ Answer without notes. If you cannot, re-read that chapter's §2 and §3.
     add on top?
 17. Why must an agent write the step log before performing the tool call?
 18. How many examples do you need to detect a 2-point change in a pass rate?
+19. At 100k cache reads a second, what does a 3% miss rate do to the database?
+20. Why does a feed push for ordinary accounts and pull for celebrities?
+21. What is the blast radius of one pod failure with 100 pods, and what makes it real?
+22. Why must the *server* define the order of concurrent edits?
+23. What does a 70 ms cross-region round trip rule out, and what replaces it?

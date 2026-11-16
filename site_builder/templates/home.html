@@ -8,7 +8,7 @@
     <div class="meta">Reference library</div>
     <h1>Diagrams teach you the boxes. Write-ups teach you why they broke.</h1>
     <p class="sub">
-      Thirteen systems — from Discord, Stripe, Airbnb, Notion, Figma, Slack and Uber to vLLM, RAG and agent runtimes — each rebuilt from
+      Nineteen systems — from Discord, Stripe, Airbnb, Notion, Figma, Slack and Uber to vLLM, RAG, agent runtimes, feeds, search, caches, tenancy, CRDTs and regions — each rebuilt from
       first principles: the numbers that decide the design, the annotated flow chart, a sizing pass
       with the bytes on every wire, a prototype you can run, the Kubernetes and AWS configs that ship
       it, and the drills that break it on purpose.
@@ -47,6 +47,26 @@
     </div>
     <div class="cards">
       {% for p in ai_pages %}
+      <a class="card" href="{{ site.base }}/{{ p.url }}">
+        <div class="card-top">
+          <span class="card-num">{{ p.kicker }}</span>
+          <span class="card-time">{{ p.meta }}</span>
+        </div>
+        <h3 class="card-title">{{ p.title }}</h3>
+        <p class="card-desc">{{ p.blurb }}</p>
+        <span class="card-foot">Read the chapter <span class="arrow">→</span></span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="catalogue">
+    <div class="catalogue-head">
+      <h2>Scale and isolation</h2>
+      <span>fan-out, search, caching, tenancy, convergence, regions</span>
+    </div>
+    <div class="cards">
+      {% for p in scale_pages %}
       <a class="card" href="{{ site.base }}/{{ p.url }}">
         <div class="card-top">
           <span class="card-num">{{ p.kicker }}</span>

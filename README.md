@@ -1,6 +1,6 @@
 # System Design in Production
 
-**A build-it-yourself manual for the nine systems that show up in every senior
+**A build-it-yourself manual for the nineteen systems that show up in every senior
 system-design loop, reconstructed from the engineering write-ups that the people
 who actually ran them published.**
 
@@ -68,7 +68,7 @@ third-party CDN at runtime.
 ```
 docs/           the manual, as markdown (the only content source)
   foundations/  mental models, capacity numbers, the 9-step method
-  chapters/     the thirteen chapters
+  chapters/     the nineteen chapters
   appendices/   k8s + AWS pattern library, drills, sources
 site_builder/   build.py, Jinja templates, stylesheet, scripts, vendored mermaid
 code/           runnable prototypes, one directory per chapter

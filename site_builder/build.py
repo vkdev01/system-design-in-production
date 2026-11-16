@@ -29,7 +29,7 @@ OUT = ROOT / "dist"
 
 SITE = {
     "title": "System Design in Production",
-    "tagline": "Thirteen production systems, rebuilt from first principles.",
+    "tagline": "Nineteen production systems, rebuilt from first principles.",
     "repo": "https://github.com/vkdev01/system-design-in-production",
     "url": "https://vkdev01.github.io/system-design-in-production",
     # Project pages live under /<repo>/, so every template link needs the prefix.
@@ -168,6 +168,55 @@ SECTIONS = [
                 "kicker": "13",
                 "meta": "Statistics",
                 "blurb": "Sample sizes, calibrated judges, slices and a gate: regression testing for non-deterministic systems.",
+            },
+        ],
+    },
+    {
+        "id": "scale",
+        "label": "Scale and isolation",
+        "blurb": "Fan-out, search, caching, tenant isolation, convergence and regions.",
+        "pages": [
+            {
+                "src": "chapters/14-news-feed-timeline.md",
+                "title": "News feed and timeline",
+                "kicker": "14",
+                "meta": "TAO",
+                "blurb": "Push for ordinary accounts, pull for the 50M-follower tail: a feed is a materialised join you choose where to pay for.",
+            },
+            {
+                "src": "chapters/15-search-inverted-index.md",
+                "title": "Search: inverted index to ranking",
+                "kicker": "15",
+                "meta": "Lucene",
+                "blurb": "Postings, positions, tombstones and BM25: cost proportional to k, not to the million documents that matched.",
+            },
+            {
+                "src": "chapters/16-cache-tier.md",
+                "title": "The cache tier",
+                "kicker": "16",
+                "meta": "memcache",
+                "blurb": "Leases, delete-not-set, hot keys: every 1% of misses is 1,000 queries a second aimed at the database.",
+            },
+            {
+                "src": "chapters/17-multi-tenant-isolation.md",
+                "title": "Multi-tenant isolation",
+                "kicker": "17",
+                "meta": "Shopify",
+                "blurb": "Pods, Sorting Hat and a Pod Mover: turn a platform-wide outage into 1/N of tenants.",
+            },
+            {
+                "src": "chapters/18-collaborative-editing.md",
+                "title": "Collaborative editing",
+                "kicker": "18",
+                "meta": "Figma",
+                "blurb": "One process per document, last-writer-wins per property, fractional ordering and the cycle check only a server can do.",
+            },
+            {
+                "src": "chapters/19-multi-region-active-active.md",
+                "title": "Multi-region active-active",
+                "kicker": "19",
+                "meta": "Regions",
+                "blurb": "70 ms round trips forbid synchronous replication; home-region ownership and a failover that can refuse.",
             },
         ],
     },
@@ -574,6 +623,7 @@ def build() -> None:
         themes=THEMES,
         chapter_pages=pages_of("chapters"),
         ai_pages=pages_of("ai"),
+        scale_pages=pages_of("scale"),
         foundation_pages=pages_of("foundations"),
         appendix_pages=pages_of("appendices"),
     )

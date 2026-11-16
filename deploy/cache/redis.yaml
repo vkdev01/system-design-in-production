@@ -1,0 +1,41 @@
+# Chapter 16: the cache proxy. Consistent hashing lives in the client so a node
+# loss moves 1/N of keys; the proxy owns leases and the local hot-key cache.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: cache-proxy, namespace: cache }
+spec:
+  replicas: 6
+  selector: { matchLabels: { app: cache-proxy } }
+  template:
+    metadata:
+      labels: { app: cache-proxy }
+      annotations: { prometheus.io/scrape: "true", prometheus.io/port: "8080" }
+    spec:
+      containers:
+        - name: proxy
+          image: ghcr.io/example/cache-proxy:1.3.0
+          args: ["--hash=ketama", "--lease-ttl=10s", "--local-ttl=1s", "--breaker=5%"]
+          env:
+            - { name: REDIS_NODES, value: "redis-0:6379,redis-1:6379,redis-2:6379" }
+          resources:
+            requests: { cpu: 500m, memory: 256Mi }
+            limits: { memory: 512Mi }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            periodSeconds: 5
+            failureThreshold: 2
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: hotkey-report, namespace: cache }
+spec:
+  schedule: "*/5 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: hotkeys
+              image: ghcr.io/example/cache-tools:1.3.0
+              args: ["hotkeys", "--threshold=100x-median", "--window=5m"]

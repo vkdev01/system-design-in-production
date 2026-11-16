@@ -20,9 +20,10 @@ Nine production write-ups are the spine of this repo:
 | 08 | Design driver matching for Uber | H3: Uber's hexagonal spatial index |
 | 09 | Design a notification system | How Discord handles push request bursts of over a million per minute |
 
-Each chapter follows the same eight-step path: the problem and the naive design, the numbers
+Each chapter follows the same nine-step path: the problem and the naive design, the numbers
 that decide it, the mental model, the annotated flow chart, a sizing pass (per-component
-capacity, bytes on the wire, benchmark targets), the build from scratch to a working
+capacity, bytes on the wire, benchmark targets), the algorithm end to end (request
+walkthrough, pseudocode, invariants, edge cases), the build from scratch to a working
 prototype, the production layer (Kubernetes manifests, AWS managed services, limits, failure
 drills), and finally the two-minute interview answer.
 
@@ -62,7 +63,7 @@ third-party CDN at runtime.
 
 ```
 docs/           the manual, as markdown (the only content source)
-  foundations/  mental models, capacity numbers, the 8-step method
+  foundations/  mental models, capacity numbers, the 9-step method
   chapters/     the nine chapters
   appendices/   k8s + AWS pattern library, drills, sources
 site_builder/   build.py, Jinja templates, stylesheet, scripts, vendored mermaid

@@ -129,7 +129,60 @@ shard, because that is the unit you scale.
 | Per-shard AAS skew | average active sessions, max ÷ avg | < 2× | the shard key is skewed |
 | Shard-split impact | partial availability during a flip | < 30 s | the number to quote before you flip |
 
-## 6. Build it
+## 6. The algorithm, end to end
+
+The proxy turns a query into a routing decision. The interesting part is not the
+lookup — it is what the proxy refuses to do, and how the same code runs in
+"logical" mode before any data moves.
+
+| # | Who | What happens | If this step fails |
+|---|---|---|---|
+| 1 | App | sends a query with its parameters, unchanged since before the proxy existed | — |
+| 2 | DBProxy | parses just enough to find the table and its shard key | unparseable → pass through or reject by config |
+| 3 | DBProxy | extracts the shard-key value from the parameters | missing → **error and metric**, never a fan-out |
+| 4 | DBProxy | hashes the key → shard; looks up the pool for that shard | unknown shard → 503 |
+| 5 | DBProxy | in *logical* mode: routes as if sharded but the pool points at the single old host, and shadow-compares results | mismatch → metric, no user impact |
+| 6 | DBProxy | in *physical* mode: executes against the real shard with a 250 ms statement timeout | timeout → 504, caller retries |
+| 7 | DBProxy | records latency per shard, per table | — |
+
+```pseudo
+function execute(sql, params):
+    table = parseTable(sql)
+    key   = params[shardKeyFor(table)]
+    if key is null:
+        metric("unroutable", table)
+        raise Unroutable(table)                 # loud, never a scatter-gather
+
+    shard = ring.lookup(key)
+    pool  = pools[shard]
+
+    if mode == LOGICAL:                          # data still on one host
+        result = pool.query(sql, params, timeout = 250ms)
+        shadowCompare(shard, sql, params, result)
+        return result
+
+    return pool.query(sql, params, timeout = 250ms)
+```
+
+**Invariants.**
+
+- **A query either routes or fails.** There is no third outcome, because a silent
+  fan-out turns a 2 ms query into a 400 ms one and nobody notices until the p99
+  incident.
+- **Logical sharding is a configuration flag.** Rollback is a flag flip, which is why
+  the migration can be de-risked in production.
+- **Schema changes go through one orchestrator** and are backward compatible for one
+  release, so a half-migrated fleet still serves.
+
+| Edge case | What the algorithm does |
+|---|---|
+| Query with no shard key | `Unroutable` + `dbproxy_unroutable_total` — the alert is the fix |
+| Query that genuinely needs two shards | rejected; the feature moves to the async/CDC path |
+| A shard split is in flight | the map version gates writes; the split job is idempotent per chunk |
+| Proxy pod dies mid-query | connection resets; the caller retries against another proxy |
+| A shard's primary fails over | pool reconnects, ~10–30 s of errors for that shard only |
+
+## 7. Build it
 
 ### Step 1 — instrument before you move anything
 
@@ -272,7 +325,7 @@ VALID` → `VALIDATE CONSTRAINT`).
 
 ---
 
-## 7. The production layer
+## 8. The production layer
 
 ### DBProxy on Kubernetes
 
@@ -415,7 +468,7 @@ design and very visible on the bill.
 
 ---
 
-## 8. The two-minute answer
+## 9. The two-minute answer
 
 > "The mistake I want to avoid is going from one Postgres instance straight to
 > horizontal sharding. Figma's ladder is the right shape: they started at ~65% CPU

@@ -148,7 +148,75 @@ fail during a provider slowdown — precisely when it must not.
 | Repair throughput | rows fixed per second | ≥ 40/s | the loop keeps up with a provider incident |
 | Provider error rate | 5xx ÷ total | < 2% | above this, stop retrying into the outage |
 
-## 6. Build it
+## 6. The algorithm, end to end
+
+Three phases, two short transactions, one irreversible call, and a repair loop that
+owns everything the request path could not finish. This is the algorithm; section 7
+is the same thing in Python.
+
+| # | Phase | What happens | State after |
+|---|---|---|---|
+| 1 | pre-RPC | validate, take the lease, `INSERT` intent | `pending`, lease set |
+| 2 | pre-RPC | `COMMIT` — the intent is now durable | — |
+| 3 | RPC | call the provider with our own key `pay-<id>`, timeout 2 s | unchanged |
+| 4 | post-RPC | `UPDATE` state, write two ledger rows, insert the outbox event, `COMMIT` | `succeeded` / `failed_terminal` / `failed_retryable` |
+| 5 | repair | picks up `pending`/`unknown` rows whose lease expired, `FOR UPDATE SKIP LOCKED` | — |
+| 6 | repair | asks the provider "what happened to `pay-<id>`?" | authoritative answer |
+| 7 | repair | writes the outcome exactly as step 4 would have | terminal |
+| 8 | outbox | publishes `payments.settled`; consumers dedupe on payment id | downstream consistent |
+
+```pseudo
+function createPayment(request):
+    # ---- phase 1: intent, one short transaction ----
+    tx.begin()
+    p = insertIntent(request, lease = now() + 30s)
+    tx.commit()
+    if p.wasReplay: return p.storedResponse
+
+    # ---- phase 2: the irreversible call, no transaction open ----
+    try:
+        ref = provider.charge(amount, currency, idempotencyKey = "pay-" + p.id, timeout = 2s)
+        outcome = SUCCEEDED(ref)
+    catch Declined as e:   outcome = TERMINAL(e)
+    catch Timeout / 5xx:   outcome = UNKNOWN(e)        # money may have moved
+
+    # ---- phase 3: outcome, one short transaction ----
+    tx.begin()
+    updateState(p.id, outcome)
+    if outcome.ok: insertLedger(p.id, amount)
+    insertOutbox(p.id, outcome)
+    tx.commit()
+    return p.storedResponse
+
+
+function repairStuck():
+    rows = select where state in (pending, unknown) and lease < now() - 10s
+           order by updated_at limit 200 for update skip locked
+    for r in rows:
+        remote = provider.getByKey("pay-" + r.id)      # the authoritative question
+        applyOutcome(r.id, remote)                      # same write as phase 3
+```
+
+**Invariants.**
+
+- **No network call inside a transaction; no database call during the RPC.** Otherwise
+  a slow provider drains your connection pool.
+- **Every payment reaches a terminal state.** `unknown` is a state, not an excuse: the
+  repair loop guarantees it drains.
+- **Ledger rows are written in the same transaction as the state change**, so balances
+  are always derivable.
+- **Retries are safe because the provider knows our key.** Without that, the repair
+  loop can only ask, not fix.
+
+| Edge case | What the algorithm does |
+|---|---|
+| Provider charged, response lost | `unknown` → repair finds `captured` → `succeeded`, one charge |
+| Provider never received it | repair sees `not_found` → `failed_retryable` → retried under the same key |
+| Crash between phase 2 and 3 | lease expires, repair closes it out |
+| Two workers on one payment | `FOR UPDATE SKIP LOCKED` plus the lease |
+| Provider down for ten minutes | rows accumulate in `unknown`; the circuit opens; repair drains after recovery |
+
+## 7. Build it
 
 ### Step 1 — intent, outcome, and an outbox in one schema
 
@@ -312,7 +380,7 @@ twice from two different screens.
 
 ---
 
-## 7. The production layer
+## 8. The production layer
 
 ```yaml
 # deploy/payments/worker.yaml (abridged) : the repair loop
@@ -404,7 +472,7 @@ spec:
 
 ---
 
-## 8. The two-minute answer
+## 9. The two-minute answer
 
 > "Request-level idempotency isn't enough, because the money moves at a third
 > party. So I split every payment into three phases: a pre-RPC transaction that

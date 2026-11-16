@@ -149,7 +149,65 @@ primary it was meant to protect.
 | 409 rate | `http_requests_total{code="409"}` | < 2% | concurrent retries, not abuse |
 | Key table growth | table size, week over week | flat | the reaper is alive |
 
-## 6. Build it
+## 6. The algorithm, end to end
+
+The idempotency layer is one state machine evaluated in a fixed order. Get the order
+wrong and you replay the wrong answer; get the lease wrong and you strand a payment.
+
+| # | Who | What happens | Durable afterwards |
+|---|---|---|---|
+| 1 | Client | mints a UUID per logical operation, persists it **before** the call | key on the client |
+| 2 | API | computes `fingerprint = sha256(canonical(body))` | — |
+| 3 | API | `INSERT … ON CONFLICT DO NOTHING` with `state=in_progress`, `lease=now+30s` | yes, one row |
+| 4 | API | if the insert won: call the provider (no transaction open) | — |
+| 5 | API | write the outcome + the response body, clear the lease | yes |
+| 6 | Client | on any error, retries with the **same** key and the **same** body | — |
+| 7 | API | arbitration ladder (below) decides: execute, replay, 409, or take over | — |
+| 8 | Reaper | deletes rows older than the retention window, in batches | table stays flat |
+
+```pseudo
+function handle(request, key):
+    if key is null: return 400 "Idempotency-Key required"
+
+    claim = tryInsert(key, fingerprint(request))       # atomic, ON CONFLICT
+    if claim.inserted: return execute(claim.id, request)
+
+    row = select for update (key)
+
+    if row.fingerprint != fingerprint(request):        # checked FIRST
+        return 409 "same key, different parameters"
+
+    if row.state in ("succeeded", "terminal"):
+        return replay(row.response)                    # Idempotent-Replayed: true
+
+    if row.state == "in_progress" and row.lease > now():
+        return 409 "already in progress"               # back off and retry
+
+    # the previous worker died: take the lease over
+    takeLease(row.id, lease = now() + 30s)
+    return execute(row.id, request)
+```
+
+**Invariants.**
+
+- **The ladder's order is the contract.** Fingerprint before replay, because
+  replaying a stored response to a different request is a lie.
+- **The lease outlives the RPC and not the client's patience.** 30 s against a 2 s
+  provider timeout.
+- **Idempotency reads go to the primary.** A replica with two seconds of lag answers
+  "no such key" and you charge twice.
+- **The stored response is immutable.** Changing its shape is a breaking change for
+  every client that retries across it.
+
+| Edge case | What the algorithm does |
+|---|---|
+| Response lost after the provider charged | retry replays the stored 201 |
+| Two concurrent retries | one wins the insert; the other gets 409 with `Retry-After` |
+| Worker killed between claim and provider call | lease expires → next retry takes over |
+| Same key, different amount | 409 params-mismatch, never a replay |
+| Key reused after 72 h (reaped) | treated as a new request — which is why retention is longer than the slowest legitimate retry |
+
+## 7. Build it
 
 ### Step 1 — the table
 
@@ -328,7 +386,7 @@ of truth.
 
 ---
 
-## 7. The production layer
+## 8. The production layer
 
 ```yaml
 # deploy/idempotency/deployment.yaml (abridged)
@@ -413,7 +471,7 @@ resource "aws_db_instance" "payments" {
 
 ---
 
-## 8. The two-minute answer
+## 9. The two-minute answer
 
 > "A payment POST is not idempotent by nature, so I make it idempotent with a
 > client-generated `Idempotency-Key` header — a UUID per logical operation, reused

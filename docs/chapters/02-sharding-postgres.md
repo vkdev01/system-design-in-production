@@ -138,7 +138,55 @@ it is how the shard count was chosen.
 | Autovacuum | dead-tuple % and vacuum duration | never stalling | the exact signal that forced sharding |
 | Shard skew | queries per shard, max ÷ average | < 2× | a bad key makes one shard the new monolith |
 
-## 6. Build it
+## 6. The algorithm, end to end
+
+The whole system reduces to one function — workspace ID to physical database and
+schema — plus a set of rules about what you are allowed to ask once you get there.
+Everything else in this chapter is consequence.
+
+| # | Who | What happens | If this step fails |
+|---|---|---|---|
+| 1 | App | receives a request that names a workspace (from the session or the URL) | 400: the request is unrouteable by construction |
+| 2 | Router | `sha256(workspace_id) mod 480` → logical shard; integer division → physical database | pure function, cannot fail |
+| 3 | Router | checks `shard_map_version` against the row's version | reject the write: a stale map writes one workspace to two shards |
+| 4 | PgBouncer | maps the client connection onto a small server-side pool for that database | `query_wait_timeout` → 503, not a hang |
+| 5 | Postgres | executes against `schemaNNN.table` with `workspace_id` in the predicate | statement timeout 15 s |
+| 6 | App | if the query would touch two workspaces, refuses it and uses the async path instead | never a scatter-gather on the request path |
+
+```pseudo
+function route(workspace_id):
+    shard  = sha256(workspace_id) mod 480          # 480 divides by 40, 48, 60, 80, 96
+    db     = shard div 15                          # 15 logical shards per database
+    schema = "schema" + zeroPad(shard mod 15 + 1, 3)
+    return (db, schema)
+
+function query(workspace_id, sql, params):
+    (db, schema) = route(workspace_id)
+    if not sqlHasShardKey(sql):                    # every sharded table carries it
+        raise Unroutable("query needs workspace_id")
+    return pgbouncer(db).execute("set search_path to " + schema, sql, params)
+```
+
+**Invariants.**
+
+- **One workspace, one shard, forever** (for a given shard-map version). This is what
+  makes single-shard transactions and joins correct.
+- **`workspace_id` is on every sharded row.** Not just as a predicate — as a column,
+  so the row can be moved and audited later.
+- **A transaction never spans two databases.** Enforced by refusing cross-workspace
+  queries, not by hoping.
+- **The map is versioned.** Reads may use a cached map; writes must match the version
+  the shard records.
+
+| Edge case | What the algorithm does |
+|---|---|
+| A new workspace | UUID assigned at creation → hash decides the shard; nothing is rebalanced |
+| A workspace that outgrows its shard | move it to a dedicated shard and add an override entry to the map |
+| Cross-workspace search | separate analytics replica fed by CDC; never on the request path |
+| A shard is down | the router fails that workspace's requests; every other workspace is unaffected — that is the point of sharding |
+| Re-shard from 32 to 96 databases | change the divisor in `route()`, keep 480 logical shards, migrate in the background |
+
+## 7. Build it
 
 ### Step 1 — decide the shard key by walking the foreign keys
 
@@ -307,7 +355,7 @@ application's `shard_for()` did not.
 
 ---
 
-## 7. The production layer
+## 8. The production layer
 
 ### Instances and IOPS
 
@@ -447,7 +495,7 @@ data:
 
 ---
 
-## 8. The two-minute answer
+## 9. The two-minute answer
 
 > "Before sharding I'd check whether the binding constraint is really size. At
 > Notion it wasn't: `VACUUM` started stalling and TXID wraparound — 2³¹

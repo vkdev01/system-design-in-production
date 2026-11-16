@@ -60,9 +60,9 @@ SECTIONS = [
             },
             {
                 "src": "foundations/method.md",
-                "title": "The 8-step method",
+                "title": "The 9-step method",
                 "kicker": "Model 03",
-                "blurb": "The eight steps every chapter follows, plus the timed structure of a 45-minute system design interview.",
+                "blurb": "The nine steps every chapter follows, plus the timed structure of a 45-minute system design interview.",
             },
         ],
     },
@@ -176,8 +176,8 @@ THEMES = [
 STATS = [
     ("09", "production systems"),
     ("17", "numbered figures"),
-    ("133", "files in the repo"),
-    ("36k", "words of walkthrough"),
+    ("144", "files in the repo"),
+    ("40k", "words of walkthrough"),
 ]
 
 # --------------------------------------------------------------------------
@@ -208,6 +208,15 @@ def _mermaid_fence(source, language, class_name, options, md, **kwargs):
     return f'<pre class="mermaid">{html.escape(source)}</pre>'
 
 
+def _pseudo_fence(source, language, class_name, options, md, **kwargs):
+    """A pseudocode block: escaped, no syntax colouring, labelled as such."""
+    return (
+        '<div class="code"><div class="code-head"><span class="code-lang">pseudocode</span></div>'
+        f"<pre><code>{html.escape(source)}</code></pre>"
+        '<button class="code-copy" type="button">Copy</button></div>'
+    )
+
+
 EXT_CONFIGS = {
     "toc": {"permalink": "", "toc_depth": "2-3", "anchorlink": False},
     "pymdownx.highlight": {
@@ -220,6 +229,7 @@ EXT_CONFIGS = {
     "pymdownx.superfences": {
         "custom_fences": [
             {"name": "mermaid", "class": "mermaid", "format": _mermaid_fence},
+            {"name": "pseudo", "class": "pseudo", "format": _pseudo_fence},
         ]
     },
     "pymdownx.arithmatex": {"generic": True},

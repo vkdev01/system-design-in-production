@@ -132,7 +132,66 @@ connections per pod is **4 pods** — and each pod's buffer is half a second of 
 | DLQ depth | dead-letter messages ÷ traffic | < 0.5% | dead device tokens are accumulating |
 | Transactional latency | p99 for priority=transactional during a burst | flat | the shed policy is wired to the right classes |
 
-## 6. Build it
+## 6. The algorithm, end to end
+
+Fan-out is a pipeline with one hard external constraint: the provider's in-flight
+limit. Every stage below exists to respect it while never blocking the producer.
+
+| # | Stage | What happens | On failure |
+|---|---|---|---|
+| 1 | event | domain event lands on the queue (SQS) | redelivery after visibility timeout |
+| 2 | fan-out | expands one event to N devices | retried, idempotent per (event, device) |
+| 3 | dedupe | `SET NX` on a collapse key `(user, thread, 5-min window)` | duplicate → dropped |
+| 4 | preference | muted / quiet hours / already active in app → drop | — |
+| 5 | buffer | bounded enqueue (≈0.5 s of burst per pod) | full → shed + metric |
+| 6 | pusher | demands work in batches ≤ 100 per connection | provider 429 → back off |
+| 7 | provider | FCM / APNs / Web Push | 4xx → delete token; 5xx → retry |
+| 8 | retry | exponential backoff with jitter, max 4 attempts | exhausted → DLQ |
+
+```pseudo
+function onEvent(event):
+    for (user, device) in expand(event):
+        if not dedupe.allow(collapseKey(user, event.thread, 5min)): continue
+        if not preferences.allows(user, event, now()):              continue
+        if user.isActiveInApp:  continue                 # they are already looking
+        if not collector.accept(Push(user, device, event)):
+            metric("shed")                               # buffer full: documented loss
+            continue
+
+function pusher():
+    sem = semaphore(connections * 100)                   # the provider's limit, as code
+    loop:
+        sem.acquire()
+        request = collector.take()                       # demand, not push
+        spawn:
+            try:  provider.send(request)
+            catch e:
+                match classify(e):
+                    Terminal:    deleteToken(request.device); dlq(request)
+                    Retryable:   backoffWithJitter(attempt); requeue(request)
+                    CircuitOpen: requeue(request)        # do not burn attempts
+            finally: sem.release()
+```
+
+**Invariants.**
+
+- **The provider's in-flight limit is encoded as a semaphore**, and the pool is sized
+  from it: `16,700 ÷ (100 ÷ 0.05 s) ≈ 8.4` connections, so 13 for headroom.
+- **The buffer is bounded and the drop policy is explicit.** Dropping a social push is
+  acceptable; an outage is not.
+- **Transactional pushes are never shed**, and never share a queue with social ones.
+- **Retries always have jitter**, or the recovery becomes a second incident.
+- **A dead token is deleted, not retried forever.**
+
+| Edge case | What the algorithm does |
+|---|---|
+| 1M pushes in 60 s | buffer fills, shed starts, transactional latency stays flat |
+| Provider returns 429 | in-flight limit set too high → back off, alert, tune |
+| Provider outage for 3 min | circuit opens, messages requeue without burning attempts, drain after recovery |
+| Same event delivered twice | collapse key dedupes |
+| Malformed device token | 4xx → token deleted, message to DLQ |
+
+## 7. Build it
 
 ### Step 1 — the bounded buffer and the demand-driven pusher
 
@@ -303,7 +362,7 @@ The rules worth copying:
 
 ---
 
-## 7. The production layer
+## 8. The production layer
 
 ### KEDA, because HPA cannot see a backlog
 
@@ -416,7 +475,7 @@ one-line KEDA trigger. Use MSK if other systems need to replay the same events.
 
 ---
 
-## 8. The two-minute answer
+## 9. The two-minute answer
 
 > "A notification pipeline is a bounded queue between an unbounded producer and a
 > rate-limited consumer, and the whole design follows from the provider's

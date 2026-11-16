@@ -142,7 +142,68 @@ to one upsert every five seconds cuts it to 5,000 rows/s and leaves the primary 
 | Offer acceptance | accepted ÷ offered | > 60% | ETAs are wrong, or the wrong drivers are offered |
 | Double offers | offers to one driver in one window | 0 | the `SET NX` lock is working |
 
-## 6. Build it
+## 6. The algorithm, end to end
+
+One rider, one request: find candidates by expanding rings, rank by real distance,
+offer with an atomic lock, and give up cleanly. The whole thing is bounded work per
+request — that is the design goal.
+
+| # | Who | What happens | If this step fails |
+|---|---|---|---|
+| 1 | Driver app | pings position every ~4 s | next ping fixes it |
+| 2 | Ingest | `GEOADD`/`SADD` into the city's Redis, batch-upsert to Postgres every 5 s | ingest lag alarm at 15 s |
+| 3 | Rider | requests a match for `(lat, lng, city)` | — |
+| 4 | Matcher | `cell = h3(lat, lng, res 9)` | pure function |
+| 5 | Matcher | `k_ring(cell, 1)` → 7 cells → candidates; not enough → `k=2, 3, 5`, capped | cap reached → return what exists |
+| 6 | Matcher | filters: available, vehicle type, fresh ping (< 2 min), not already offered | — |
+| 7 | Matcher | ranks by haversine/ETA, takes the top N (≤ 40) | — |
+| 8 | Matcher | `SET NX` on `offer:<driver>` with a 12 s TTL | lock lost → next candidate |
+| 9 | Driver | accepts → trip created; declines or times out → lock expires, next candidate | — |
+
+```pseudo
+function match(rider):
+    cell = h3.cellAt(rider.lat, rider.lng, RES_INDEX)      # res 9, ~0.105 km2
+
+    for k in [1, 2, 3, 5]:                                 # 7, 37, 91, 271 cells
+        cells = h3.gridDisk(cell, k)
+        drivers = redis.cellMembers(cells)                 # hot path, ~0.5 ms
+        drivers = filter(drivers, available, vehicleMatch,
+                         pingAge < 2min, notOffered)
+        if length(drivers) >= 10:
+            break
+
+    ranked = sort(drivers, by = haversine(rider, driver))[:40]
+    for d in ranked:
+        if redis.set("offer:" + d.id, rider.id, nx = true, ex = 12s):
+            notify(d, rider)
+            return WAIT_FOR_ANSWER
+    return NO_DRIVER                        # explicit, not a hang
+
+function accept(rider, driver):
+    if redis.get("offer:" + driver.id) != rider.id: return STALE_OFFER
+    redis.del("offer:" + driver.id)                     # idempotent on the offer id
+    createTrip(rider, driver)                           # chapters 04/05 apply here
+```
+
+**Invariants.**
+
+- **Bounded work per request.** Ring expansion is capped; candidate set is capped;
+  offer attempts are capped. No unbounded scan can be triggered by a client.
+- **One live offer per driver.** `SET NX` is the only primitive that can promise that.
+- **Position and cell never disagree.** They are written in one statement, because a
+  stale cell makes a driver unmatchable.
+- **Stale pings never win.** A two-minute freshness filter is the difference between a
+  ghost driver and a real one.
+
+| Edge case | What the algorithm does |
+|---|---|
+| Airport hotspot: 2,000 drivers in one cell | candidate cap + ranking; latency stays flat |
+| Two riders, one driver | exactly one `SET NX` wins; the other falls through |
+| Driver goes offline mid-offer | lock expires in 12 s; rider re-matches |
+| Rider on a cell boundary | `k_ring` includes neighbours; no candidate is missed |
+| No drivers at all | explicit `NO_DRIVER` after the cap, not a long scan |
+
+## 7. Build it
 
 ### Step 1 — index a position
 
@@ -302,7 +363,7 @@ reconciled by the location-ingest service.
 
 ---
 
-## 7. The production layer
+## 8. The production layer
 
 ### Shard by city, not by cell
 
@@ -413,7 +474,7 @@ resource "aws_elasticache_replication_group" "geo" {
 
 ---
 
-## 8. The two-minute answer
+## 9. The two-minute answer
 
 > "The trick is to stop thinking in coordinates and start thinking in cells. H3
 > tiles the earth with hexagons on a hierarchy of 16 resolutions — about 5.2 km² at

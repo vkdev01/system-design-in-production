@@ -142,7 +142,67 @@ across the fleet — which is why "history window" in section 6 is a bounded num
 | CS resident memory | container RSS | < 8 GB | OOMKill risk on the ring |
 | Reconnect rate | new sockets ÷ active sockets per minute | < 5% | a region or CS is failing |
 
-## 6. Build it
+## 6. The algorithm, end to end
+
+Two paths matter: a client subscribing, and a message reaching every subscriber. Both
+are short, and both depend on the ring being right.
+
+| # | Path | Who | What happens |
+|---|---|---|---|
+| 1 | connect | client | opens a WebSocket to its nearest region's edge (Envoy) |
+| 2 | connect | gateway | authenticates, loads the user's channel list, sends the first frame |
+| 3 | connect | gateway | subscribes to each owning channel server **asynchronously**, 32 at a time |
+| 4 | connect | gateway | replays the delta from `last_seen_message_id` if the client sent one |
+| 5 | send | client | `POST` to the web app (persisted path) or a frame to the gateway (transient path) |
+| 6 | send | admin server | hashes `channel_id` → owning channel server |
+| 7 | send | channel server | verifies ring version **and** ownership, appends to its history window |
+| 8 | send | channel server | fans out to every subscribed gateway in parallel, bounded per gateway |
+| 9 | send | gateway | pushes to each subscribed socket, dropping slow consumers |
+| 10 | rebalance | CHARM | on CS loss, re-assigns channels; gateways re-subscribe; ~20 s of elevated latency |
+
+```pseudo
+function publish(channel, message, ringVersion):
+    if ringVersion != myRingVersion: raise RingVersionMismatch   # stale routing
+    if ring.owner(channel) != me:    raise NotOwner              # never write twice
+
+    history[channel].append(message)                 # bounded window, in memory
+    gateways = subscribers[channel]
+
+    parallel for gw in gateways:                     # bounded, timed out
+        gw.send(channel, message)                    # one slow gateway cannot stall
+
+function onConnect(client, lastSeen):
+    for channel in userChannels(client):             # 32 at a time, jittered retries
+        cs = ring.owner(channel)
+        cs.subscribe(channel, client.id)
+        delta = cs.replay(channel, lastSeen)          # in-memory if the gap is small
+        if delta is null: delta = storage.read(channel, lastSeen)   # fall back to ch 01
+        client.send(delta)
+
+function deliver(client, frame):
+    try: client.outbox.put(frame)                     # bounded queue (256)
+    catch Full: close(client, "slow consumer; resync required")
+```
+
+**Invariants.**
+
+- **One owner per channel** — that single writer is what gives you ordering for free.
+- **A channel server writes only what it owns**, and refuses messages routed with a
+  stale ring version.
+- **Fan-out is bounded.** A slow consumer is disconnected and told to resync; it never
+  slows anyone else.
+- **The channel server is a cache of history, not the source of truth.** Losing one is
+  a latency event, not a data-loss event.
+
+| Edge case | What the algorithm does |
+|---|---|
+| Client reconnects after a gap | `last_seen_message_id` → in-memory replay, or storage fallback |
+| CS dies | ring re-assigns; gateways re-subscribe with jitter; ~20 s |
+| 60k sockets reconnecting at once | jittered backoff, gateway scaled on connections |
+| One client stops reading | dropped after its 256-frame queue fills |
+| Typing indicator | gateway → CS directly, never persisted, never through the web app |
+
+## 7. Build it
 
 ### Step 1 — the consistent hash ring
 
@@ -323,7 +383,7 @@ gateway connection, same policy as clients).
 
 ---
 
-## 7. The production layer
+## 8. The production layer
 
 ### Channel servers: StatefulSet, not Deployment
 
@@ -468,7 +528,7 @@ spec:
 
 ---
 
-## 8. The two-minute answer
+## 9. The two-minute answer
 
 > "Slack's design separates ownership of a conversation from ownership of a
 > socket. Channel Servers are stateful and in-memory, and each one owns a subset of

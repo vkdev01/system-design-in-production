@@ -152,7 +152,64 @@ two numbers together in a review and nobody asks why the extra service exists.
 | Dropped mutations | `scylla_database_dropped_mutations` | 0 | the cluster is shedding writes it cannot absorb |
 | Compaction backlog | pending compaction bytes | < 1 h of ingest | the death spiral starts here |
 
-## 6. Build it
+## 6. The algorithm, end to end
+
+Sizing gave each box a number. This is the part in between: one message, from a
+client's keystroke to another client's screen, in order, with the invariants that
+make it correct. Read this before the code in section 7 — the code is only this
+algorithm spelled in Go.
+
+| # | Who | What happens | Durable afterwards | If this step fails |
+|---|---|---|---|---|
+| 1 | Client | mints a Snowflake ID (time-ordered, unique per worker) and sends `POST /channels/:id/messages` | nothing | client retries with the same ID; the write is idempotent |
+| 2 | API | checks membership from a cache, computes `bucket = window(message_id)` | nothing | 403/500; no state to unwind |
+| 3 | API | `INSERT` at `LOCAL_QUORUM` into `((channel_id, bucket), message_id)` | commitlog on ≥2 of 3 replicas | 503; client retries, same row, same result |
+| 4 | ScyllaDB | coordinator hashes the partition key → replicas; memtable + commitlog; quorum ack | yes | one replica slow → quorum still met; two slow → write fails, retry |
+| 5 | API | publishes `message.created` to the fan-out path (chapter 07) | no — best effort | message is stored but not pushed; the client's next fetch finds it |
+| 6 | Reader | `GET /channels/:id/messages?after=&limit=` → data service with routing key `channel_id` | nothing | retry; read path holds no state |
+| 7 | Data service | coalesces on `(channel, bucket, after, limit)`; one query per key, not per reader | no (in-flight only) | coalescer entry dies with the pod; the query just runs again |
+| 8 | ScyllaDB | single-partition ordered scan, `message_id DESC` | — | if the window is empty, the caller reads `bucket - 1` |
+| 9 | Data service | if `len(rows) < limit`, merges the previous bucket | no | partial page returned; the next request continues from the last ID |
+
+```pseudo
+function readMessages(channel, after, limit):
+    bucket = windowOf(after)                      # static 10-day window
+    key    = "chan:" + channel + ":b:" + bucket
+
+    return coalesce(key, function () {            # N readers -> 1 query
+        rows = scylla.query(channel, bucket, after, limit)     # 1 partition, ordered
+        if length(rows) < limit:                  # straddle the window boundary
+            rows += scylla.query(channel, bucket - 1, after, limit - length(rows))
+        return rows
+    })
+
+function writeMessage(channel, message):
+    bucket = windowOf(message.id)
+    scylla.insert(channel, bucket, message, consistency = LOCAL_QUORUM)
+    publish("message.created", { channel, message })   # async, not on the write path
+```
+
+**Invariants the design depends on.**
+
+- **Ordering is per channel, not global.** The partition `(channel_id, bucket)` with
+  `message_id` as the clustering key gives a total order inside one window; two
+  channels have no relative order, and nobody needs one.
+- **The write is idempotent by construction.** The primary key contains the message
+  ID, so a retried insert overwrites a row with identical values. No dedupe table.
+- **Reads never see a hole.** A read that straddles a bucket boundary merges both
+  windows before returning, so pagination cannot skip a message.
+- **Coalescing never changes the answer.** It is keyed on the exact query
+  parameters; two different queries never share a result.
+
+| Edge case | What the algorithm does |
+|---|---|
+| Message sent exactly on a bucket boundary | `windowOf` is a floor division, so it belongs to the later window; a reader straddling it merges both |
+| Client retries after a timeout | Same Snowflake ID → same primary key → one row |
+| Channel with 500k members, 20k reads/s | Coalescing collapses them to one query per window; the shard's concurrency cap protects the node |
+| Reader asks for a window older than retention | Data service returns the cold-tier pointer; object storage serves it |
+| Two clients send at the same millisecond | Different Snowflake sequence numbers → different clustering keys → stable order |
+
+## 7. Build it
 
 ### Step 1 — the schema that survives skew
 
@@ -311,7 +368,7 @@ GROUP BY channel_id, bucket;
 
 ---
 
-## 7. The production layer
+## 8. The production layer
 
 ### Storage topology
 
@@ -467,7 +524,7 @@ Run these before you trust the cluster. Each takes minutes.
 
 ---
 
-## 8. The two-minute answer
+## 9. The two-minute answer
 
 > "A chat store is an append-only log per channel read by recency, so I'd
 > partition by channel and bucket the partition by time — `((channel_id, bucket),
@@ -504,7 +561,7 @@ Run these before you trust the cluster. Each takes minutes.
 
 ---
 
-## 9. Checklist
+## 10. Checklist
 
 - [ ] Partition key starts with the entity every query filters on
 - [ ] Time bucket in the partition key, with a documented max partition size

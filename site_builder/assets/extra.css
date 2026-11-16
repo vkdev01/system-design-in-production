@@ -23,7 +23,110 @@
 }
 
 /* mermaid diagrams inside a .fig card */
-.fig.mermaid-fig .mermaid-out { min-height: 0; }
+.fig.mermaid-fig { position: relative; }
+.fig.mermaid-fig .mermaid-out {
+  min-height: 0;
+  overflow-x: auto;
+  cursor: zoom-in;
+  padding-bottom: 4px;
+}
+/* natural size, not shrink-to-fit: text stays at the size it was drawn */
+.fig.mermaid-fig .mermaid-out svg { max-width: none; height: auto; }
+.fig.mermaid-fig .mermaid-out svg * { font-family: var(--sans); }
+
+.fig-tools {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.fig.mermaid-fig:hover .fig-tools,
+.fig.mermaid-fig:focus-within .fig-tools { opacity: 1; }
+@media (hover: none) {
+  .fig-tools { opacity: 1; }
+}
+.fig-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--dim);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.fig-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* wide diagrams get the same extra room as wide tables */
+@media (min-width: 1180px) {
+  .doc .fig.mermaid-fig { width: calc(100% + 128px); }
+}
+
+/* ---------- zoom viewer ---------- */
+.zoom { position: fixed; inset: 0; z-index: 95; display: none; background: rgba(9, 11, 16, 0.88); }
+.zoom.open { display: block; }
+.zoom__bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  color: #f2f3f5;
+  font-size: 13px;
+}
+.zoom__title { font-weight: 700; letter-spacing: -0.01em; }
+.zoom__hint { color: rgba(255, 255, 255, 0.55); font-size: 12px; }
+.zoom__spacer { flex: 1; }
+.zoom__btn {
+  height: 30px;
+  min-width: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f2f3f5;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.zoom__btn:hover { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 255, 255, 0.45); }
+.zoom__pct { font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, 0.7); min-width: 44px; text-align: center; }
+.zoom__stage {
+  position: absolute;
+  inset: 54px 0 0;
+  overflow: hidden;
+  cursor: grab;
+}
+.zoom__stage.grabbing { cursor: grabbing; }
+.zoom__inner {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  transform-origin: 0 0;
+  background: #fff;
+  padding: 18px;
+  border-radius: 10px;
+  box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.7);
+}
+.zoom__inner svg { display: block; max-width: none; height: auto; }
+@media (max-width: 720px) {
+  .zoom__hint { display: none; }
+  .zoom__inner { top: 12px; left: 12px; padding: 10px; }
+}
 .prose pre.mermaid {
   margin: 0;
   padding: 0;

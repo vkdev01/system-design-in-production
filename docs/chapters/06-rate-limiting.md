@@ -137,7 +137,72 @@ whether one Redis shard is enough.
 | 429 rate per user | p99 across accounts | < 5% | limits set too low, or abuse |
 | Shed rate | worker shedder rejections | 0 at steady state | above zero, you are in an incident |
 
-## 6. Build it
+## 6. The algorithm, end to end
+
+Four decisions in a fixed order, each cheaper than the next, with a documented
+answer for "the limiter itself is broken". The order matters as much as the
+algorithms.
+
+| # | Limiter | Cost | Decision | Failure mode |
+|---|---|---|---|---|
+| 1 | Request rate | 1 Redis `EVAL` (~0.3 ms) | take `cost` tokens from the bucket; empty → 429 | Redis error → **allow**, increment `degraded` |
+| 2 | Concurrency | 1 `ZADD` + `ZREM` | more than N in flight → 429 | error → allow |
+| 3 | Fleet usage | 1 cached counter read | non-critical over its share → 503 | stale counter → allow |
+| 4 | Worker utilisation | local atomic, 0 network | shed class by class → 503 | cannot fail |
+
+```pseudo
+function admit(request):
+    if not limiterEnabled: return ALLOW                 # kill switch
+
+    # 1. token bucket, atomic in Lua
+    (allowed, left) = eval(tokenBucket, keys = ["{u}:tokens", "{u}:ts"],
+                           args = [rate, burst, now, cost(request)])
+    if redisError: metric("degraded"); return ALLOW     # fail open
+    if not allowed: return REJECT_429(left)
+
+    # 2. in-flight cap for CPU-heavy endpoints
+    if inFlight(user) >= 20: return REJECT_429()
+
+    # 3. fleet reservation for critical methods
+    if not critical(request) and fleetInflight() > capacity * 0.80:
+        return SHED_503()
+
+    # 4. this box, right now
+    util = localInflight / localCapacity
+    if util > 0.98 and class(request) != CRITICAL: return SHED_503()
+    if util > 0.95 and class(request) == GET:      return SHED_503()
+    if util > 0.90 and class(request) == TEST:     return SHED_503()
+
+    return ALLOW
+
+function tokenBucket(rate, burst, now, cost):
+    tokens = min(burst, stored + (now - lastRefill) * rate)
+    allowed = tokens >= cost
+    if allowed: tokens -= cost
+    store(tokens, now, ttl = 2 * burst / rate)
+    return (allowed, tokens)
+```
+
+**Invariants.**
+
+- **The limiter is a filter, not a dependency.** Every error path allows the request;
+  `ratelimit_degraded_total` is the alarm, not a 500.
+- **One round trip per request, bounded at 20 ms.** Anything more expensive belongs in
+  a different layer.
+- **Shedding and restoring are slow.** Thresholds move a few percent per minute, or the
+  system flaps.
+- **Critical methods are exempt from steps 3 and 4.** Payments do not queue behind a
+  test-mode script.
+
+| Edge case | What the algorithm does |
+|---|---|
+| Redis down | allow everything, alert, keep serving |
+| One user at 10k req/s | their bucket empties; other users' keys hash to other shards |
+| Legitimate 5× burst | burst capacity absorbs it; the bucket refills at `rate` |
+| Clock skew across pods | `now` comes from the server, and the bucket tolerates a small delta because it stores `lastRefill` |
+| Bad limit shipped | kill switch flips the limiter off in seconds, no deploy |
+
+## 7. Build it
 
 ### Step 1 — the token bucket, atomically, in Lua
 
@@ -329,7 +394,7 @@ bring it back, you flap. Move the thresholds a few percent per minute.
 
 ---
 
-## 7. The production layer
+## 8. The production layer
 
 ### Where to put the limiter
 
@@ -457,7 +522,7 @@ every pod from the load balancer — the exact outage you were protecting agains
 
 ---
 
-## 8. The two-minute answer
+## 9. The two-minute answer
 
 > "Rate is only one of four ways a fleet gets overwhelmed, so I'd build four
 > limiters that fire in order of cost.

@@ -79,6 +79,22 @@
   </div>
 </div>
 
+<div class="zoom" id="zoom" aria-hidden="true">
+  <div class="zoom__bar">
+    <span class="zoom__title" id="zoom-title">Diagram</span>
+    <span class="zoom__hint">drag to pan · scroll to zoom · esc to close</span>
+    <span class="zoom__spacer"></span>
+    <button class="zoom__btn" data-zoom="out" aria-label="Zoom out">−</button>
+    <span class="zoom__pct" id="zoom-pct">100%</span>
+    <button class="zoom__btn" data-zoom="in" aria-label="Zoom in">+</button>
+    <button class="zoom__btn" data-zoom="reset">Fit</button>
+    <button class="zoom__btn zoom__btn--close" data-zoom="close" aria-label="Close">Close ✕</button>
+  </div>
+  <div class="zoom__stage" id="zoom-stage">
+    <div class="zoom__inner" id="zoom-inner"></div>
+  </div>
+</div>
+
 <script src="{{ site.base }}/assets/site.js" defer data-base="{{ site.base }}"></script>
 <script src="{{ site.base }}/assets/vendor/mermaid.min.js" defer></script>
 <script src="{{ site.base }}/assets/mermaid-init.js" defer></script>

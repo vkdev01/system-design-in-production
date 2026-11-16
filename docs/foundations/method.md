@@ -1,6 +1,6 @@
-# The 8-step method
+# The 9-step method
 
-Every chapter in this manual follows the same eight steps. This page explains why,
+Every chapter in this manual follows the same nine steps. This page explains why,
 so you can use the method on systems that are not in this repo — including the one
 in your interview tomorrow.
 
@@ -66,7 +66,17 @@ wire between each hop, then the benchmarks the component must hold itself to.
 This is the step most designs skip, and it is the one that catches the mistake: a component
 with 1.05× headroom, or a queue that is sized for the average instead of the burst.
 
-### 6. Build it
+### 6. The algorithm, end to end
+
+Sizing says how big each box is; this says what actually happens to one request, in
+order. A step table (who does what, what is durable afterwards, what happens when
+that step fails), then the pseudocode for the core routine, then the invariants the
+design depends on and the edge cases it must survive.
+
+This is the bridge between the theory and the build: if you cannot write the
+algorithm in twenty lines of pseudocode, the design is not finished.
+
+### 7. Build it
 
 From `docker compose` on your laptop to a prototype that does the interesting
 thing: the partitioned table, the Lua script, the consistent hash ring, the
@@ -76,7 +86,7 @@ prototype — because the point is the mechanism, not a framework.
 Run it. Break it. The failure drills in [Appendix B](../appendices/drills.md) tell
 you how.
 
-### 7. The production layer
+### 8. The production layer
 
 This is where most tutorials stop and where real systems are decided:
 
@@ -91,7 +101,7 @@ This is where most tutorials stop and where real systems are decided:
 - **Failure drill**: one command that breaks it on purpose, and what you should
   see.
 
-### 8. The two-minute answer
+### 9. The two-minute answer
 
 The spoken version, with numbers, trade-offs, and the failure mode you would watch.
 Then the follow-up questions you should expect, because interviews are decided in
@@ -167,5 +177,5 @@ model) can be read in five minutes, the flow chart in two, and the build and
 production sections are for when you are at a keyboard. The two-minute answer is
 for the night before the interview.
 
-If you only have twenty minutes per system: read steps 1, 2, 3 and 8. That is 80%
+If you only have twenty minutes per system: read steps 1, 2, 3 and 9. That is 80%
 of the interview value for 20% of the reading.

@@ -1,4 +1,4 @@
-name: Docs sanity
+name: Site and content checks
 
 on:
   pull_request:
@@ -13,21 +13,34 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -r requirements.txt
-      - name: Build docs strictly
-        run: mkdocs build --strict
-      - name: Validate YAML manifests and SQL files parse
+      - run: pip install -r requirements.txt pyyaml
+      - name: Build the site
+        run: python site_builder/build.py
+      - name: Every markdown page is reachable from the nav
         run: |
-          pip install pyyaml
+          python - <<'PY'
+          import pathlib, sys
+          sys.path.insert(0, 'site_builder')
+          import build
+          listed = {p['src'] for s in build.SECTIONS for p in s['pages']}
+          on_disk = {str(p.relative_to(build.DOCS)) for p in build.DOCS.rglob('*.md')}
+          orphan = on_disk - listed - {'index.md'}
+          print('pages in nav:', len(listed), '| markdown files:', len(on_disk))
+          if orphan:
+              print('NOT IN NAV:', sorted(orphan)); sys.exit(1)
+          PY
+      - name: Validate YAML manifests
+        run: |
           python - <<'PY'
           import glob, sys, yaml
           bad = []
-          for f in glob.glob("deploy/**/*.yaml", recursive=True) + glob.glob("deploy/**/*.yml", recursive=True):
+          files = glob.glob("deploy/**/*.yaml", recursive=True) + glob.glob("deploy/**/*.yml", recursive=True)
+          for f in files:
               try:
                   list(yaml.safe_load_all(open(f)))
               except Exception as e:
                   bad.append((f, e))
-          print("checked", len(bad), "files with errors" if bad else "files, all valid")
+          print(f"checked {len(files)} files, {len(bad)} errors")
           for f, e in bad:
               print("FAIL", f, e)
           sys.exit(1 if bad else 0)

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title }} — {{ site.title }}{% endblock %}
+{% block description %}{{ page.blurb }}{% endblock %}
+{% block ogtitle %}{{ page.title }}{% endblock %}
+{% block canonical %}{{ page.url }}{% endblock %}
+
+{% block body %}
+<main class="article">
+  <div class="crumbs">
+    <a href="{{ site.base }}/">Index</a>
+    <span>/</span>
+    <a href="{{ site.base }}/{{ section.pages[0].url }}">{{ section.label }}</a>
+  </div>
+
+  <header class="article__head">
+    <p class="eyebrow">
+      {% if page.meta %}{{ section.label }} · {{ page.kicker }} · {{ page.meta }}
+      {% else %}{{ section.label }} · {{ page.kicker }}{% endif %}
+    </p>
+    <h1 class="article__title">{{ page.title }}</h1>
+    <p class="article__lede">{{ page.blurb }}</p>
+  </header>
+
+  <div class="pagegrid">
+    <article class="prose">
+      {{ body | safe }}
+
+      <nav class="pager" aria-label="Chapter navigation">
+        {% if page.prev %}
+        <a class="pager__link pager__link--prev" href="{{ site.base }}/{{ page.prev.url }}">
+          <span class="pager__dir">← Previous</span>
+          <span class="pager__name">{{ page.prev.title }}</span>
+        </a>
+        {% else %}<span></span>{% endif %}
+        {% if page.next %}
+        <a class="pager__link pager__link--next" href="{{ site.base }}/{{ page.next.url }}">
+          <span class="pager__dir">Next →</span>
+          <span class="pager__name">{{ page.next.title }}</span>
+        </a>
+        {% endif %}
+      </nav>
+    </article>
+
+    {% if page.toc %}
+    <aside class="rail">
+      <details class="rail__box" open>
+        <summary>On this page</summary>
+        <nav class="rail__nav">
+          {% for t in page.toc %}
+          <a href="#{{ t.id }}" class="rail__link rail__link--l{{ t.level }}">{{ t.name }}</a>
+          {% endfor %}
+        </nav>
+      </details>
+    </aside>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

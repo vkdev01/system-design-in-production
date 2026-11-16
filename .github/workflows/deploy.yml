@@ -26,13 +26,21 @@ jobs:
       - name: Install
         run: pip install -r requirements.txt
       - name: Build
-        run: mkdocs build --strict
+        env:
+          # project page lives under /system-design-in-production/
+          SITE_BASE: /system-design-in-production
+        run: python site_builder/build.py
+      - name: Check the build produced pages
+        run: |
+          test -f dist/index.html
+          test -f dist/chapters/01-chat-message-storage/index.html
+          test -f dist/search-index.json
+          test -f dist/.nojekyll
+          echo "pages: $(find dist -name '*.html' | wc -l)"
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true          # create the Pages site on the first run
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: dist
   deploy:
     needs: build
     runs-on: ubuntu-latest

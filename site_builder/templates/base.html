@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ site.title }}{% endblock %}</title>
+<meta name="description" content="{% block description %}{{ site.tagline }}{% endblock %}">
+<meta property="og:title" content="{% block ogtitle %}{{ site.title }}{% endblock %}">
+<meta property="og:type" content="article">
+<meta name="color-scheme" content="light dark">
+<link rel="canonical" href="{{ site.url }}/{% block canonical %}{% endblock %}">
+<link rel="stylesheet" href="{{ site.base }}/assets/site.css">
+<link rel="stylesheet" href="{{ site.base }}/assets/code.css">
+<script>
+  // set the theme before first paint so there is no flash
+  (function () {
+    try {
+      var t = localStorage.getItem('sdip-theme');
+      if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<div class="progress" id="progress" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <a class="wordmark" href="{{ site.base }}/">
+      <span class="wordmark__mark">SD</span>
+      <span class="wordmark__text">System Design <i>in</i> Production</span>
+    </a>
+
+    <nav class="topnav" aria-label="Sections">
+      <a href="{{ site.base }}/foundations/mental-models/">Foundations</a>
+      <a href="{{ site.base }}/chapters/01-chat-message-storage/">Chapters</a>
+      <a href="{{ site.base }}/appendices/k8s-aws-patterns/">Appendices</a>
+    </nav>
+
+    <div class="tools">
+      <button class="iconbtn" id="search-open" aria-label="Search (press /)" title="Search — press /">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"></circle><path d="M13.5 13.5 18 18"></path></svg>
+      </button>
+      <button class="iconbtn" id="theme" aria-label="Toggle theme" title="Toggle light / dark">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="4.5"></circle><path d="M10 1v2.5M10 16.5V19M1 10h2.5M16.5 10H19M3.6 3.6l1.8 1.8M14.6 14.6l1.8 1.8M16.4 3.6l-1.8 1.8M5.4 14.6l-1.8 1.8"></path></svg>
+      </button>
+      <button class="iconbtn only-mobile" id="menu" aria-label="Open navigation" aria-expanded="false">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 5h16M2 10h16M2 15h16"></path></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="drawer" id="drawer" hidden>
+    {% for sec in sections %}
+    <div class="drawer__group">
+      <p class="drawer__label">{{ sec.label }}</p>
+      {% for p in sec.pages %}
+      <a href="{{ site.base }}/{{ p.url }}">{{ p.kicker }} · {{ p.title }}</a>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</header>
+
+{% block body %}{% endblock %}
+
+<footer class="footer">
+  <div class="footer__inner">
+    <div>
+      <p class="footer__title">System Design in Production</p>
+      <p class="footer__note">Nine published post-mortems, rebuilt as build-alongs. Numbers quoted from the
+        original write-ups; arithmetic shown so you can check it.</p>
+    </div>
+    <div class="footer__links">
+      <a href="{{ site.base }}/foundations/mental-models/">Foundations</a>
+      <a href="{{ site.base }}/appendices/drills/">Drills</a>
+      <a href="{{ site.base }}/appendices/sources/">Sources</a>
+      <a href="{{ site.repo }}" rel="noopener">GitHub ↗</a>
+    </div>
+  </div>
+</footer>
+
+<div class="search" id="search" hidden>
+  <div class="search__backdrop" data-close></div>
+  <div class="search__panel" role="dialog" aria-modal="true" aria-label="Search">
+    <div class="search__field">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"></circle><path d="M13.5 13.5 18 18"></path></svg>
+      <input id="search-input" type="search" placeholder="Search the manual…" autocomplete="off" spellcheck="false">
+      <kbd>esc</kbd>
+    </div>
+    <div class="search__results" id="search-results"></div>
+  </div>
+</div>
+
+<script src="{{ site.base }}/assets/site.js" defer data-base="{{ site.base }}"></script>
+<script src="{{ site.base }}/assets/vendor/mermaid.min.js" defer></script>
+<script src="{{ site.base }}/assets/mermaid-init.js" defer></script>
+</body>
+</html>

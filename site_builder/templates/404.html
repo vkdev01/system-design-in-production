@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Not found — {{ site.title }}{% endblock %}
+{% block body %}
+<main class="article">
+  <div class="prose">
+    <p class="eyebrow">404</p>
+    <h1 class="article__title">That page is not here</h1>
+    <p class="article__lede">The manual has nine chapters, three foundations and three appendices.</p>
+    <ul>
+      {% for sec in sections %}{% for p in sec.pages %}
+      <li><a href="{{ site.base }}/{{ p.url }}">{{ sec.label }} · {{ p.title }}</a></li>
+      {% endfor %}{% endfor %}
+    </ul>
+  </div>
+</main>
+{% endblock %}

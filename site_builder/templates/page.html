@@ -12,7 +12,7 @@
       <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.6"></circle>
       <path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
     </svg>
-    <input id="idx-search" placeholder="Filter {{ section.pages|length }} sections…" aria-label="Filter sections">
+    <input id="idx-search" placeholder="Filter {{ sections|map(attribute="pages")|map("length")|sum }} entries…" aria-label="Filter sections">
   </label>
 
   <a class="cta" href="{{ site.base }}/foundations/mental-models/">

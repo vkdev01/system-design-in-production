@@ -276,3 +276,20 @@ mjx-container[jax="SVG"] svg { max-width: none; }
 /* callout titles are uppercased; keep identifiers in their real casing */
 .ann > b code,
 .ann > b a { text-transform: none; letter-spacing: 0; font-size: 12.5px; }
+
+/* ---------- sidebar focus ----------
+   The active entry gets an accent spine and its group label is marked, so the
+   current chapter is obvious even before you scroll the list. */
+.idx li.on > .item { position: relative; }
+.idx li.on > .item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.idx .group.active { color: var(--accent); }
+.idx li.on > .item .n { font-weight: 700; }

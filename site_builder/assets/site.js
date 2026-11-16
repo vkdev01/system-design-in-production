@@ -64,6 +64,34 @@
     if (btn && idx) btn.addEventListener('click', function () { idx.classList.toggle('open'); });
   });
 
+  /* ---------- sidebar: show where you are ----------
+     The list is long (19 entries), so on a deep chapter the active item sits
+     below the fold. Scroll only the sidebar -- never the page -- and mark the
+     group it belongs to. */
+  (function focusSidebar() {
+    var idx = document.querySelector('.idx');
+    if (!idx) return;
+    var active = idx.querySelector('li.on');
+    if (!active) return;
+
+    // mark the group header so the section is obvious even at a glance
+    var list = active.parentElement;
+    var group = list && list.previousElementSibling;
+    if (group && group.classList.contains('group')) group.classList.add('active');
+
+    function reveal() {
+      var box = active.getBoundingClientRect();
+      var frame = idx.getBoundingClientRect();
+      var top = box.top - frame.top;
+      var visible = idx.clientHeight;
+      if (top < 0 || top > visible - box.height) {
+        idx.scrollTop += top - visible / 3;
+      }
+    }
+    reveal();
+    window.addEventListener('load', reveal);      // fonts can shift the list
+  })();
+
   /* ---------- sidebar filter ---------- */
   var filter = document.getElementById('idx-search');
   if (filter && idx) {

@@ -1,17 +1,18 @@
-/* Pygments token colours mapped onto the theme's code variables, so highlighted
-   code follows the active scheme exactly like the rest of the reference site. */
-.highlight .c, .highlight .c1, .highlight .cm, .highlight .cs, .highlight .ch { color: var(--code-com); font-style: italic; }
-.highlight .k, .highlight .kc, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr { color: var(--code-kw); font-weight: 500; }
-.highlight .kt { color: var(--code-type); }
-.highlight .s, .highlight .s1, .highlight .s2, .highlight .sb, .highlight .sc, .highlight .sd, .highlight .se,
-.highlight .sh, .highlight .si, .highlight .sx, .highlight .sr, .highlight .ss, .highlight .dl { color: var(--code-str); }
-.highlight .m, .highlight .mb, .highlight .mf, .highlight .mh, .highlight .mi, .highlight .mo, .highlight .il { color: var(--code-num); }
-.highlight .nf, .highlight .fm { color: var(--code-fn); font-weight: 600; }
-.highlight .nc, .highlight .nn, .highlight .ne, .highlight .nb, .highlight .bp, .highlight .no { color: var(--code-type); }
-.highlight .na, .highlight .nv, .highlight .vc, .highlight .vg, .highlight .vi, .highlight .nt, .highlight .nl { color: var(--code-type); }
-.highlight .o, .highlight .ow, .highlight .p { color: var(--ink-2); }
-.highlight .gd { background: var(--warm-soft); }
-.highlight .gi { background: var(--accent-2-soft); }
-.highlight .gh, .highlight .gu { color: var(--accent); font-weight: 600; }
-.highlight .ge { font-style: italic; }
-.highlight .gs { font-weight: 700; }
+/* Pygments token colours mapped onto the theme's code variables.
+   The generator wraps each block in `.code` (not `.highlight`), so every rule
+   below targets `.code` -- with `.highlight` kept for safety. */
+.code .c, .code .c1, .code .cm, .code .cs, .code .ch { color: var(--code-com); font-style: italic; }
+.code .k, .code .kc, .code .kd, .code .kn, .code .kp, .code .kr { color: var(--code-kw); font-weight: 500; }
+.code .kt { color: var(--code-type); }
+.code .s, .code .s1, .code .s2, .code .sb, .code .sc, .code .sd, .code .se,
+.code .sh, .code .si, .code .sx, .code .sr, .code .ss, .code .dl { color: var(--code-str); }
+.code .m, .code .mb, .code .mf, .code .mh, .code .mi, .code .mo, .code .il { color: var(--code-num); }
+.code .nf, .code .fm { color: var(--code-fn); font-weight: 600; }
+.code .nc, .code .nn, .code .ne, .code .nb, .code .bp, .code .no { color: var(--code-type); }
+.code .na, .code .nv, .code .vc, .code .vg, .code .vi, .code .nt, .code .nl { color: var(--code-type); }
+.code .o, .code .ow, .code .p { color: var(--ink-2); }
+.code .gd { background: var(--warm-soft); }
+.code .gi { background: var(--accent-2-soft); }
+.code .gh, .code .gu { color: var(--accent); font-weight: 600; }
+.code .ge { font-style: italic; }
+.code .gs { font-weight: 700; }

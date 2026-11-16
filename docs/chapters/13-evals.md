@@ -50,6 +50,19 @@ n \approx \frac{2\,(z_{\alpha/2} + z_\beta)^2\, p(1-p)}{\delta^2}
 = \frac{15.7 \times 0.25}{\delta^2}
 $$
 
+| Symbol | Read as | Value here |
+|---|---|---|
+| \(n\) | examples needed **per arm** — per configuration you are comparing | the answer |
+| \(z_{\alpha/2}\) | normal quantile for the confidence level; how many standard deviations cover 95% | 1.96 |
+| \(z_\beta\) | normal quantile for power; the chance you detect a real effect | 0.84 at 80% power |
+| \(p\) | baseline pass rate of the system you are measuring | 0.5 (worst case) |
+| \(p(1-p)\) | variance of a pass/fail outcome, largest when \(p = 0.5\) | 0.25 |
+| \(\delta\) (delta) | the smallest effect you care to detect, as a proportion | 0.02 for 2 points |
+| \(15.7\) | \(2(1.96 + 0.84)^2\), the constant once confidence and power are fixed | — |
+
+Worked: \(\delta = 0.02\) gives \(15.7 \times 0.25 / 0.0004 \approx 9{,}800\)
+examples per arm, which is the 2-point row in the table below.
+
 | Effect you want to detect | Examples per arm | Verdict |
 |---|---|---|
 | 10 points | ~390 | a demo set |

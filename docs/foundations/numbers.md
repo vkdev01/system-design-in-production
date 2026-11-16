@@ -6,6 +6,27 @@ of the databases and brokers these thirteen chapters use. Everything is either a
 published figure (linked in [Appendix C](../appendices/sources.md)) or arithmetic
 you can redo on paper.
 
+## Notation used in this manual
+
+Every formula is followed by a table naming its symbols. These conventions hold
+everywhere, so you can read a formula without hunting for a key:
+
+| Notation | Means |
+|---|---|
+| × ÷ | multiply, divide |
+| ≈ | approximately equal — right to within a few percent, which is all an estimate needs |
+| ~ | roughly, order of magnitude (not a tight bound) |
+| 1e6, 10⁶ | one million; 1e9 is a billion |
+| k / M / B | thousand / million / billion |
+| KB, MB, TB, GB | decimal (1,000-based) throughout, unless the sentence says otherwise; a KiB is 1,024 bytes |
+| 86,400 | seconds in a day — the divisor behind almost every estimate here |
+| QPS, rps | queries or requests per second |
+| p50, p99 | 50th and 99th percentile of a latency distribution |
+| RF=3 | replication factor three: every row lives on three nodes |
+| λ, δ, α, β | Greek letters keep their usual statistics meanings: rate, effect size, false-positive rate, false-negative rate |
+| ₹ / $ | rupees and US dollars; at the time of writing ₹88 ≈ $1, so ₹1 lakh ≈ $1,140 |
+| → | "becomes" or "leads to", in prose and in diagrams |
+
 ## Unit conversions, memorised
 
 | Question | Answer | How to get it fast |

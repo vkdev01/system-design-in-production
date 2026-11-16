@@ -19,11 +19,22 @@ $$
 L = \lambda \times W
 $$
 
+| Symbol | Read as | Unit |
+|---|---|---|
+| \(L\) | concurrency: requests being served right now | requests in flight |
+| \(\lambda\) (lambda) | arrival rate: requests per second reaching the system | requests/second |
+| \(W\) | time in system: how long one request takes end to end | seconds |
+
 At 20,000 requests per second with a 50 ms p99:
 
 $$
 L = 20{,}000 \times 0.05 = 1{,}000 \text{ requests in flight}
 $$
+
+Same symbols, in the units that matter: \(\lambda = 20{,}000\) requests/second,
+\(W = 0.05\) seconds (50 ms, so the 0.05 is milliseconds divided by 1,000), and
+\(L = 1{,}000\) — that is how many connections, threads or goroutines you must have
+open at that instant.
 
 If latency doubles, in-flight doubles with no change in traffic, and now you are
 out of connections, memory or threads, so latency triples, so in-flight triples.
@@ -51,6 +62,17 @@ If a request touches 100 services and each has a 1% chance of being slow:
 $$
 P(\text{at least one slow}) = 1 - 0.99^{100} = 63\%
 $$
+
+| Symbol | Read as | Unit |
+|---|---|---|
+| \(P(\cdot)\) | probability of the event in brackets | 0 to 1, shown as % |
+| \(0.99\) | chance one dependency answers fast, i.e. it is outside its own p99 | probability |
+| \(100\) | fan-out: how many dependencies one user request touches | count |
+| \(1 - x\) | complement: "at least one" is one minus "none" | probability |
+| \(63\%\) | the answer: about two in three page loads hit a slow tail | probability |
+
+So the arithmetic is \(0.99^{100} = 0.37\) chance that *every* dependency is fast,
+and \(1 - 0.37 = 0.63\) that at least one is not.
 
 This is why
 Discord's move from Cassandra to ScyllaDB mattered so much: the win was not

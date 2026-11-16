@@ -60,6 +60,15 @@ $$
 \text{bytes/token} = 2 \times H_{kv} \times d \times 2 \times L
 $$
 
+| Symbol | Read as | Unit |
+|---|---|---|
+| \(H_{kv}\) | key/value heads per layer. Grouped-query attention keeps this small (8 instead of 64); that is the whole trick | count |
+| \(d\) | head dimension: elements per head vector (128 is typical) | elements |
+| \(L\) | transformer layers in the model | count |
+| the first \(2\) | one key vector **and** one value vector per head | — |
+| the second \(2\) | bytes per element, because FP16 is two bytes | bytes |
+| bytes/token | total cache cost of one token, summed over all layers | bytes |
+
 | Model | L | KV heads | d | Per token | 8k context, one sequence |
 |---|---|---|---|---|---|
 | 8B, GQA | 32 | 8 | 128 | **128 KB** | **1 GB** |
@@ -72,6 +81,14 @@ every weight once:
 $$
 \text{ms/token} \approx \frac{\text{weight bytes}}{\text{HBM bandwidth}}
 $$
+
+| Symbol | Read as | Unit |
+|---|---|---|
+| weight bytes | model size on disk: parameters × bytes per parameter (8B at FP16 = 16 GB) | bytes |
+| HBM bandwidth | how fast the GPU can stream memory: an H100 moves about 3.35 TB/s | bytes/second |
+| ms/token | time to emit one token in decode, when every weight is read once | milliseconds |
+| \(P\) | parameters in the model, used later as \(2PT\) for prefill FLOPs | count |
+| \(T\) | prompt tokens in one request | count |
 
 An 8B model in FP16 is 16 GB; an H100 has ~3.35 TB/s of HBM3, so
 \(16/3350 \approx 4.8\) ms/token, about **200 tokens/s for a single stream**, no

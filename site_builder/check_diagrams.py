@@ -13,12 +13,14 @@ from __future__ import annotations
 
 import functools
 import http.server
+import os
 import re
 import shutil
 import socket
 import socketserver
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -34,7 +36,22 @@ def chrome() -> str:
     sys.exit("no headless browser found (google-chrome or chromium)")
 
 
+def serve_root() -> tuple[Path, str]:
+    """The site may be built with a base path (GitHub Pages project sites).
+    If so, serve a temp directory that has dist/ nested under that prefix,
+    otherwise the asset URLs 404 and Mermaid never loads."""
+    html = (ROOT / "index.html").read_text()
+    m = re.search(r'src="([^"]*)/assets/site\.js"', html)
+    base = (m.group(1) if m else "").strip("/")
+    if not base:
+        return ROOT, ""
+    tmp = Path(tempfile.mkdtemp())
+    os.symlink(ROOT, tmp / base)
+    return tmp, base + "/"
+
+
 def main() -> None:
+    serve_dir, prefix = serve_root()
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
@@ -46,7 +63,7 @@ def main() -> None:
 
     socketserver.ThreadingTCPServer.allow_reuse_address = True
     server = socketserver.ThreadingTCPServer(
-        ("127.0.0.1", port), functools.partial(Quiet, directory=str(ROOT))
+        ("127.0.0.1", port), functools.partial(Quiet, directory=str(serve_dir))
     )
     threading.Thread(target=server.serve_forever, daemon=True).start()
     time.sleep(0.5)
@@ -58,7 +75,7 @@ def main() -> None:
         dom = subprocess.run(
             [browser, "--headless", "--disable-gpu", "--no-sandbox",
              "--virtual-time-budget=9000", "--dump-dom",
-             f"http://127.0.0.1:{port}/{rel}/"],
+             f"http://127.0.0.1:{port}/{prefix}{rel}/"],
             capture_output=True, text=True,
         ).stdout
         nodes = dom.count('class="mermaid"')

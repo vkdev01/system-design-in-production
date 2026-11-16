@@ -106,7 +106,39 @@ the clustering logic opaque, and they wanted control over data distribution.
 
 ---
 
-## 5. Build it
+## 5. Sizing the components
+
+Sharding moves the bottleneck from one machine to a fleet, so the sizing question changes from
+"how big is the instance" to "how many, and what is the per-shard number".
+
+| Component | Unit of work | Cost per unit | Peak demand | Provisioned | Headroom |
+|---|---|---|---|---|---|
+| Physical databases | one query | 16k provisioned IOPS | 312 queries/s each | 96 × `db.r6g.4xlarge` | 25× on IOPS |
+| Logical shards | one schema | 5 shards per database | 62 queries/s each | 480 shards | — |
+| Storage | one block row ≈ 1 KB | 500 GB per table, 10 TB per DB | 200 B rows ≈ 200 TB | 96 DBs × 2 TB | 2.1 TB used of 10 TB |
+| Per-shard table | `block` per schema | 416 GB per shard's block table | 200 TB total | under the 500 GB cap | 1.2× |
+| PgBouncer | client connection | 25 server connections per DB | 4,000 app connections | 8 pods, transaction pooling | 3× |
+| Backfill | row copy | ~5k rows/s per worker | 200 B rows | 200 workers | ~2.3 days |
+
+The arithmetic worth showing: 200 TB ÷ 96 databases = **2.1 TB per database**, and ÷ 5 shards =
+**416 GB per shard's `block` table** — just under the 500 GB ceiling. That is not a coincidence;
+it is how the shard count was chosen.
+
+**Bytes on the wire.**
+
+- app → PgBouncer: 30k queries/s × 1.5 KB request = **45 MB/s in**, 30k × 2 KB = **60 MB/s out**
+- PgBouncer → Postgres: same 60 MB/s, but over only ~2,400 server connections instead of 4,000
+- Multi-AZ replication: 1.5× the write volume, ~**15 MB/s** per database at peak
+
+| Benchmark | How to measure | Target | What it tells you |
+|---|---|---|---|
+| p99 query | `pg_stat_statements` histogram per shard | ≤ 20 ms | user-visible latency |
+| Replica lag | `pg_last_wal_replay_lsn` age | < 1 s | stale reads, and idempotency bugs (ch 04) |
+| TXID age | `age(datfrozenxid)` | < 1.5 B | wraparound is the existential risk |
+| Autovacuum | dead-tuple % and vacuum duration | never stalling | the exact signal that forced sharding |
+| Shard skew | queries per shard, max ÷ average | < 2× | a bad key makes one shard the new monolith |
+
+## 6. Build it
 
 ### Step 1 — decide the shard key by walking the foreign keys
 
@@ -275,7 +307,7 @@ application's `shard_for()` did not.
 
 ---
 
-## 6. The production layer
+## 7. The production layer
 
 ### Instances and IOPS
 
@@ -415,7 +447,7 @@ data:
 
 ---
 
-## 7. The two-minute answer
+## 8. The two-minute answer
 
 > "Before sharding I'd check whether the binding constraint is really size. At
 > Notion it wasn't: `VACUUM` started stalling and TXID wraparound — 2³¹

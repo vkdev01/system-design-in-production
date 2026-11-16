@@ -14,8 +14,8 @@
 
   <header class="article__head">
     <p class="eyebrow">
-      {% if page.meta %}{{ section.label }} · {{ page.kicker }} · {{ page.meta }}
-      {% else %}{{ section.label }} · {{ page.kicker }}{% endif %}
+      {% if page.meta %}Plate {{ page.kicker }} · {{ page.meta }} · {{ section.label }}
+      {% else %}Plate {{ page.kicker }} · {{ section.label }}{% endif %}
     </p>
     <h1 class="article__title">{{ page.title }}</h1>
     <p class="article__lede">{{ page.blurb }}</p>
@@ -44,7 +44,7 @@
     {% if page.toc %}
     <aside class="rail">
       <details class="rail__box" open>
-        <summary>On this page</summary>
+        <summary>Index</summary>
         <nav class="rail__nav">
           {% for t in page.toc %}
           <a href="#{{ t.id }}" class="rail__link rail__link--l{{ t.level }}">{{ t.name }}</a>

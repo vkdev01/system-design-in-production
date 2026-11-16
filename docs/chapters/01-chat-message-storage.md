@@ -121,7 +121,38 @@ Failure points on every arrow, and the answer to each:
 
 ---
 
-## 5. Build it
+## 5. Sizing the components
+
+The flow chart tells you which boxes exist; this is where each box gets a number. Every figure
+below comes from the peak demand in section 2, so if the assumptions change the table changes.
+
+| Component | Unit of work | Cost per unit | Peak demand | Provisioned | Headroom |
+|---|---|---|---|---|---|
+| Data service | coalesced read request | ~20k req/s per 8-vCPU pod | 400k req/s (4× writes) | 24 pods, `c7g.2xlarge` | 1.2× |
+| ScyllaDB nodes | one 200 B row, RF=3 | ~1,600 writes/s per node at 15 ms p99 | 116k writes/s | 72 nodes, 9 TB NVMe | 1.6× on throughput; sized by storage |
+| Storage queries | 1 query per coalesced key | 8:1 coalescing on hot channels | 50k queries/s | same 72 nodes | 14× |
+| Ingest | 1.7 TB/day on disk | 9 TB per node, ~5 days hot | 615 TB/year | 72 nodes = 648 TB | ~1 year before a new rack |
+| Compaction | 1-day time windows | ≤ 1 h backlog | 1.7 TB/day rewritten | `TimeWindowCompactionStrategy` | the metric that matters |
+
+**Bytes on the wire.** Little's Law again, but counted in bytes rather than requests:
+
+- client → API: 116k writes/s × 350 B = **41 MB/s**
+- API → data service: 400k reads/s × 120 B request = **48 MB/s in**, 400k × 1.5 KB = **600 MB/s out**
+- data service → ScyllaDB: 50k coalesced queries/s × 1.5 KB = **75 MB/s** (this is the 8:1 saving)
+- ScyllaDB replication: 116k writes/s × 200 B × 3 replicas = **70 MB/s of cross-node traffic**
+
+The gap between 600 MB/s and 75 MB/s is the entire argument for the coalescing tier. Quote those
+two numbers together in a review and nobody asks why the extra service exists.
+
+| Benchmark | How to measure | Target | What it tells you |
+|---|---|---|---|
+| p99 history read | k6 against `/messages`, one channel | ≤ 15 ms | the number the migration was for |
+| p99 insert | same load test, write path | ≤ 5 ms | protects the 200 ms end-to-end budget |
+| Coalescing ratio | `coalescer_hits / storage_queries` | ≥ 8:1 on hot channels | routing is actually working |
+| Dropped mutations | `scylla_database_dropped_mutations` | 0 | the cluster is shedding writes it cannot absorb |
+| Compaction backlog | pending compaction bytes | < 1 h of ingest | the death spiral starts here |
+
+## 6. Build it
 
 ### Step 1 — the schema that survives skew
 
@@ -280,7 +311,7 @@ GROUP BY channel_id, bucket;
 
 ---
 
-## 6. The production layer
+## 7. The production layer
 
 ### Storage topology
 
@@ -436,7 +467,7 @@ Run these before you trust the cluster. Each takes minutes.
 
 ---
 
-## 7. The two-minute answer
+## 8. The two-minute answer
 
 > "A chat store is an append-only log per channel read by recency, so I'd
 > partition by channel and bucket the partition by time — `((channel_id, bucket),
@@ -473,7 +504,7 @@ Run these before you trust the cluster. Each takes minutes.
 
 ---
 
-## 8. Checklist
+## 9. Checklist
 
 - [ ] Partition key starts with the entity every query filters on
 - [ ] Time bucket in the partition key, with a documented max partition size

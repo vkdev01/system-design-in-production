@@ -166,9 +166,9 @@ SECTIONS = [
 
 STATS = [
     ("09", "production systems"),
-    ("18", "flow charts"),
-    ("126", "files in the repo"),
-    ("23k", "words of walkthrough"),
+    ("17", "numbered figures"),
+    ("133", "files in the repo"),
+    ("36k", "words of walkthrough"),
 ]
 
 # --------------------------------------------------------------------------
@@ -277,6 +277,54 @@ def flatten_toc(tokens: list[dict], depth: int = 2) -> list[dict]:
     return out
 
 
+DIAGRAM_KINDS = [
+    ("sequencediagram", "sequence"),
+    ("statediagram", "state machine"),
+    ("erdiagram", "entity relationships"),
+    ("gantt", "schedule"),
+    ("classdiagram", "class diagram"),
+    ("pie", "breakdown"),
+    ("flowchart", "flow chart"),
+    ("graph", "flow chart"),
+]
+
+
+def diagram_kind(src: str) -> str:
+    head = src.strip().split("\n", 1)[0].lower().replace(" ", "")
+    for key, label in DIAGRAM_KINDS:
+        if head.startswith(key):
+            return label
+    return "diagram"
+
+
+def add_figures(body: str) -> str:
+    """Wrap every diagram in a numbered plate figure, atlas style."""
+    counter = iter(range(1, 1000))
+
+    def sub(m: re.Match) -> str:
+        inner = m.group(1)
+        n = next(counter)
+        return (
+            f'<figure class="fig">{m.group(0)}'
+            f'<figcaption>Fig. {n} — {diagram_kind(html.unescape(inner))}</figcaption></figure>'
+        )
+
+    return re.sub(r'<pre class="mermaid">(.*?)</pre>', sub, body, flags=re.S)
+
+
+def add_code_lang(body: str) -> str:
+    """Pygments marks the language on the wrapper; expose it for a CSS tab."""
+    return re.sub(
+        r'<div class="language-([\w+#-]+) highlight">',
+        r'<div class="language-\1 highlight" data-lang="\1">',
+        body,
+    )
+
+
+def decorate(body: str) -> str:
+    return add_code_lang(add_figures(body))
+
+
 def plain_text(body_html: str) -> str:
     txt = re.sub(r"<pre.*?</pre>", " ", body_html, flags=re.S)
     txt = re.sub(r"<[^>]+>", " ", txt)
@@ -312,7 +360,7 @@ def build() -> None:
     # --- home ---
     home_src = (DOCS / "index.md").read_text()
     home_body, _, _ = convert(strip_title(home_src))
-    home_body = rewrite_links(home_body, "index.md", SITE["base"])
+    home_body = decorate(rewrite_links(home_body, "index.md", SITE["base"]))
 
     # --- pass 1: every page needs its url before any page renders (prev/next) ---
     for sec in SECTIONS:
@@ -331,7 +379,7 @@ def build() -> None:
             src = DOCS / page["src"]
             text = src.read_text()
             body, toc_html, tokens = convert(strip_title(text))
-            body = rewrite_links(body, page["src"], SITE["base"])
+            body = decorate(rewrite_links(body, page["src"], SITE["base"]))
             page["toc"] = flatten_toc(tokens)
             flat_pages.append(page)
 

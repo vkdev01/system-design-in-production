@@ -110,7 +110,39 @@ flowchart TD
 
 ---
 
-## 5. Build it
+## 5. Sizing the components
+
+Location updates dominate the write path by two orders of magnitude over matching, so the system is
+sized for pings and only *budgeted* for matches.
+
+| Component | Unit of work | Cost per unit | Peak demand | Provisioned | Headroom |
+|---|---|---|---|---|---|
+| Location ingest | 1 driver ping | 60 B, every ~4 s | 100k drivers = **25k pings/s** | 4 pods | 2× |
+| Redis geo | `GEOADD` / `SREM`+`SADD` | ~100k ops/s per shard | 25k ops/s | 3 shards, by city | 4× |
+| Postgres upsert | 1 row upsert | ~5k rows/s per node | 25k/s, batched every 5 s | 1 × `r6g.4xlarge` | 5× |
+| Matcher | 1 ring query, ≤ 40 candidates | 2 ms p99 on Redis | 500 matches/s per city | 9 pods | 6× |
+| Offer lock | `SET NX EX` | 0.2 ms | 500/s | same Redis | — |
+
+A ping every four seconds from 100,000 drivers is 25,000 writes a second per city. Sending that
+straight to Postgres would be the whole database budget spent on positions nobody reads; batching
+to one upsert every five seconds cuts it to 5,000 rows/s and leaves the primary for trips.
+
+**Bytes on the wire.**
+
+- driver → ingest: 25k pings/s × 60 B = **1.5 MB/s**
+- ingest → Redis: 25k ops/s × 80 B = **2 MB/s**
+- ingest → Postgres: 5k rows/s × 120 B = **0.6 MB/s** after batching
+- matcher → client: 500 matches/s × 2 KB candidate list = **1 MB/s**
+
+| Benchmark | How to measure | Target | What it tells you |
+|---|---|---|---|
+| Match p99 | histogram in the matcher | < 50 ms | riders are waiting |
+| Zero-candidate rate | matches returning 0 rows | < 2% | supply is thin, or the index is stale |
+| Ingest lag | now − last ping timestamp | < 15 s | you are matching ghosts |
+| Offer acceptance | accepted ÷ offered | > 60% | ETAs are wrong, or the wrong drivers are offered |
+| Double offers | offers to one driver in one window | 0 | the `SET NX` lock is working |
+
+## 6. Build it
 
 ### Step 1 — index a position
 
@@ -270,7 +302,7 @@ reconciled by the location-ingest service.
 
 ---
 
-## 6. The production layer
+## 7. The production layer
 
 ### Shard by city, not by cell
 
@@ -381,7 +413,7 @@ resource "aws_elasticache_replication_group" "geo" {
 
 ---
 
-## 7. The two-minute answer
+## 8. The two-minute answer
 
 > "The trick is to stop thinking in coordinates and start thinking in cells. H3
 > tiles the earth with hexagons on a hierarchy of 16 resolutions — about 5.2 km² at

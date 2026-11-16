@@ -117,7 +117,39 @@ flowchart TD
 
 ---
 
-## 5. Build it
+## 5. Sizing the components
+
+An idempotency layer adds one write per phase to the hottest path you own, so size it as a write
+system, not as a cache.
+
+| Component | Unit of work | Cost per unit | Peak demand | Provisioned | Headroom |
+|---|---|---|---|---|---|
+| Claim | 1 `INSERT … ON CONFLICT` | ~6k key writes/s per `r6g.2xlarge` | 3,000 ops/s (500 charges × 1.5 retries) | 1 primary, `r6g.4xlarge` | 3× |
+| Finish | 1 `UPDATE` + stored response | same | 500/s | same primary | 12× |
+| Key table | ~500 B per row | 72 h retention | 43.2 M rows/day | ~130 M rows, 65 GB | flat, if the reaper runs |
+| Reaper | batched `DELETE` | 100k rows per batch | 43.2 M rows/day to expire | every 3 min | 1.1× |
+| Provider calls | 1 per new key | 300 ms p99 | 500/s | 500 × 0.3 = 150 in flight | 4 pods × 50 conns |
+
+The row that surprises people is the reaper: at 500 charges/second you are inserting
+**43.2 million rows a day**, so a batch every fifteen minutes cannot keep up. It needs to run every
+three minutes, or the key table becomes the largest table in the database and starts to hurt the
+primary it was meant to protect.
+
+**Bytes on the wire.**
+
+- client → API: 500 charges/s × 1.2 KB = **0.6 MB/s**; retries push it to ~1 MB/s
+- API → provider: 500/s × 800 B = **0.4 MB/s out**, responses ~600 B
+- API → Postgres: 3,000 key ops/s × 500 B = **1.5 MB/s**, which is trivial — the cost is latency, not bandwidth
+
+| Benchmark | How to measure | Target | What it tells you |
+|---|---|---|---|
+| Claim p99 | histogram around the `INSERT` | ≤ 5 ms | it sits on every payment |
+| Replay p99 | retry an already-finished key | ≤ 5 ms | retries must be cheaper than work |
+| Duplicate provider calls | provider stub call log, asserted in CI | 0 | the only number that matters |
+| 409 rate | `http_requests_total{code="409"}` | < 2% | concurrent retries, not abuse |
+| Key table growth | table size, week over week | flat | the reaper is alive |
+
+## 6. Build it
 
 ### Step 1 — the table
 
@@ -296,7 +328,7 @@ of truth.
 
 ---
 
-## 6. The production layer
+## 7. The production layer
 
 ```yaml
 # deploy/idempotency/deployment.yaml (abridged)
@@ -381,7 +413,7 @@ resource "aws_db_instance" "payments" {
 
 ---
 
-## 7. The two-minute answer
+## 8. The two-minute answer
 
 > "A payment POST is not idempotent by nature, so I make it idempotent with a
 > client-generated `Idempotency-Key` header — a UUID per logical operation, reused

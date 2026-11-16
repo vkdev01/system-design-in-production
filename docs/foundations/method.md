@@ -1,6 +1,6 @@
-# The 7-step method
+# The 8-step method
 
-Every chapter in this manual follows the same seven steps. This page explains why,
+Every chapter in this manual follows the same eight steps. This page explains why,
 so you can use the method on systems that are not in this repo — including the one
 in your interview tomorrow.
 
@@ -57,7 +57,16 @@ flowchart LR
     style P fill:#fef2f2,stroke:#ef4444
 ```
 
-### 5. Build it
+### 5. Sizing the components
+
+The flow chart says which components exist; this step gives each one a number. A table of
+*unit of work → cost per unit → peak demand → provisioned → headroom*, then the bytes on the
+wire between each hop, then the benchmarks the component must hold itself to.
+
+This is the step most designs skip, and it is the one that catches the mistake: a component
+with 1.05× headroom, or a queue that is sized for the average instead of the burst.
+
+### 6. Build it
 
 From `docker compose` on your laptop to a prototype that does the interesting
 thing: the partitioned table, the Lua script, the consistent hash ring, the
@@ -67,7 +76,7 @@ prototype — because the point is the mechanism, not a framework.
 Run it. Break it. The failure drills in [Appendix B](../appendices/drills.md) tell
 you how.
 
-### 6. The production layer
+### 7. The production layer
 
 This is where most tutorials stop and where real systems are decided:
 
@@ -82,7 +91,7 @@ This is where most tutorials stop and where real systems are decided:
 - **Failure drill**: one command that breaks it on purpose, and what you should
   see.
 
-### 7. The two-minute answer
+### 8. The two-minute answer
 
 The spoken version, with numbers, trade-offs, and the failure mode you would watch.
 Then the follow-up questions you should expect, because interviews are decided in
@@ -158,5 +167,5 @@ model) can be read in five minutes, the flow chart in two, and the build and
 production sections are for when you are at a keyboard. The two-minute answer is
 for the night before the interview.
 
-If you only have twenty minutes per system: read steps 1, 2, 3 and 7. That is 80%
+If you only have twenty minutes per system: read steps 1, 2, 3 and 8. That is 80%
 of the interview value for 20% of the reading.

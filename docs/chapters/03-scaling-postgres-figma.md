@@ -101,7 +101,35 @@ incident.
 
 ---
 
-## 5. Build it
+## 5. Sizing the components
+
+The proxy adds a hop, so it needs its own capacity plan — and the plan has to be expressed per
+shard, because that is the unit you scale.
+
+| Component | Unit of work | Cost per unit | Peak demand | Provisioned | Headroom |
+|---|---|---|---|---|---|
+| DBProxy | one routed query | ~5k queries/s per pod | 15k queries/s | 6 pods | 2× |
+| Server connections | one pooled connection | 40 per shard per pod | 8 files shards | 6 × 320 = 1,920 | 160 per shard, against 800 |
+| `files` shards | one query | 750 queries/s per shard | 6k queries/s (40% of traffic) | 8 × `db.r6g.8xlarge` | 4× |
+| Vertical partitions | one database | — | 15k queries/s total | 4 databases, sized per table group | largest at ~10% CPU |
+| Schema migrations | one DDL per shard | — | 12 shards | orchestrator, canary first | — |
+
+**Bytes on the wire.**
+
+- app → DBProxy: 15k queries/s × 2 KB = **30 MB/s in**, 15k × 4 KB = **60 MB/s out**
+- DBProxy adds ~1.2 KB of framing per query at the wire-protocol level: **+18 MB/s**, which is why
+  the proxy is scaled on connections rather than CPU
+- replication to standbys: 1.5× write volume per partition
+
+| Benchmark | How to measure | Target | What it tells you |
+|---|---|---|---|
+| Added proxy latency | compare p99 with and without DBProxy | < 1 ms | the hop must be invisible |
+| Unroutable queries | `dbproxy_unroutable_total` | 0 | a code path forgot the shard key |
+| Cross-shard queries | `dbproxy_cross_shard_queries` | 0 on the request path | scatter-gather appeared |
+| Per-shard AAS skew | average active sessions, max ÷ avg | < 2× | the shard key is skewed |
+| Shard-split impact | partial availability during a flip | < 30 s | the number to quote before you flip |
+
+## 6. Build it
 
 ### Step 1 — instrument before you move anything
 
@@ -244,7 +272,7 @@ VALID` → `VALIDATE CONSTRAINT`).
 
 ---
 
-## 6. The production layer
+## 7. The production layer
 
 ### DBProxy on Kubernetes
 
@@ -387,7 +415,7 @@ design and very visible on the bill.
 
 ---
 
-## 7. The two-minute answer
+## 8. The two-minute answer
 
 > "The mistake I want to avoid is going from one Postgres instance straight to
 > horizontal sharding. Figma's ladder is the right shape: they started at ~65% CPU

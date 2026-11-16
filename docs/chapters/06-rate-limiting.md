@@ -107,7 +107,37 @@ sequenceDiagram
 
 ---
 
-## 5. Build it
+## 5. Sizing the components
+
+A rate limiter adds a network round trip to every request, so it has two budgets: Redis capacity,
+and the milliseconds it is allowed to consume.
+
+| Component | Unit of work | Cost per unit | Peak demand | Provisioned | Headroom |
+|---|---|---|---|---|---|
+| API pods | 1 `EVAL` + handler | ~2,500 req/s per pod | 100k req/s | 40 pods | 1.5× |
+| Redis (cluster) | one Lua `EVAL`, 2 keys | ~150k ops/s per shard | 100k ops/s | 3 shards (33k each) | 4.5× |
+| Concurrency limiter | `ZADD` + `ZREM` | 2 ops per request | 20k requests in flight | same cluster | — |
+| Fleet shedder | 1 counter read | cached 1 s per pod | 40 reads/s | same cluster | negligible |
+| Limiter budget | 1 round trip | ~0.3 ms same-AZ | — | 20 ms timeout, fail open | 60× |
+
+If every request also read the fleet counters from Redis you would triple the op count; caching
+them for one second per pod turns 100k ops/s into 40. That is the kind of change that decides
+whether one Redis shard is enough.
+
+**Bytes on the wire.**
+
+- API → Redis: 100k ops/s × 220 B command = **22 MB/s in**, ~100 B response = **10 MB/s out**
+- The limiter itself never touches the request body — it only needs the account id and a cost
+
+| Benchmark | How to measure | Target | What it tells you |
+|---|---|---|---|
+| Limiter overhead | p99 with limiter minus p99 without | < 1 ms | it must be invisible |
+| Degraded rate | `ratelimit_degraded_total` ÷ requests | < 0.1% | you are running unprotected |
+| Redis p99 | client-side command latency | < 5 ms | the limiter is about to be the bottleneck |
+| 429 rate per user | p99 across accounts | < 5% | limits set too low, or abuse |
+| Shed rate | worker shedder rejections | 0 at steady state | above zero, you are in an incident |
+
+## 6. Build it
 
 ### Step 1 — the token bucket, atomically, in Lua
 
@@ -299,7 +329,7 @@ bring it back, you flap. Move the thresholds a few percent per minute.
 
 ---
 
-## 6. The production layer
+## 7. The production layer
 
 ### Where to put the limiter
 
@@ -427,7 +457,7 @@ every pod from the load balancer — the exact outage you were protecting agains
 
 ---
 
-## 7. The two-minute answer
+## 8. The two-minute answer
 
 > "Rate is only one of four ways a fleet gets overwhelmed, so I'd build four
 > limiters that fire in order of cost.

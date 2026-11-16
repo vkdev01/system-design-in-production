@@ -117,7 +117,38 @@ failure; it is the design.
 
 ---
 
-## 5. Build it
+## 5. Sizing the components
+
+The three-phase request means you hold a database connection *and* a thread for the duration of an
+external call — so the connection pool is sized by concurrency, not by request rate.
+
+| Component | Unit of work | Cost per unit | Peak demand | Provisioned | Headroom |
+|---|---|---|---|---|---|
+| Payments API | 2 transactions + 1 RPC | ~100 charges/s per pod | 1,000/s | 10 pods | 1.5× |
+| Connections during RPC | 1 held per in-flight request | 1,000/s × 2 s timeout = **2,000 in flight** | 2,000 | PgBouncer transaction pool, 200 server conns | 10× |
+| Repair worker | 1 provider query per stuck row | 200 rows per 5 s batch | < 10 stuck rows steady state | 2 pods | 40 rows/s |
+| Ledger | 2 append-only rows per payment | — | 2,000 rows/s | same primary | ~20% of write capacity |
+| Outbox publisher | batches of 500 | 50 in flight | 1,000 events/s | 2 pods | 2× |
+
+That 2,000-connection row is the whole reason PgBouncer appears in this chapter: 2,000 direct
+connections would exceed a `db.r6g.2xlarge`'s `max_connections` of 800, and the service would
+fail during a provider slowdown — precisely when it must not.
+
+**Bytes on the wire.**
+
+- client → API: 1,000 charges/s × 1.2 KB = **1.2 MB/s**
+- API → provider: 1,000/s × 700 B = **0.7 MB/s out**, responses ~600 B = **0.6 MB/s in**
+- repair → provider: 40 queries/s, negligible bandwidth but 2 s each
+
+| Benchmark | How to measure | Target | What it tells you |
+|---|---|---|---|
+| `unknown` age | `max(now() - updated_at)` where state is unknown | < 5 min | money is in limbo |
+| Duplicate provider refs | daily reconciliation against settlement file | 0 per day | the one that pages a human |
+| Outbox lag | `max(now() - created_at)` unpublished | < 60 s | downstream consumers are stale |
+| Repair throughput | rows fixed per second | ≥ 40/s | the loop keeps up with a provider incident |
+| Provider error rate | 5xx ÷ total | < 2% | above this, stop retrying into the outage |
+
+## 6. Build it
 
 ### Step 1 — intent, outcome, and an outbox in one schema
 
@@ -281,7 +312,7 @@ twice from two different screens.
 
 ---
 
-## 6. The production layer
+## 7. The production layer
 
 ```yaml
 # deploy/payments/worker.yaml (abridged) : the repair loop
@@ -373,7 +404,7 @@ spec:
 
 ---
 
-## 7. The two-minute answer
+## 8. The two-minute answer
 
 > "Request-level idempotency isn't enough, because the money moves at a third
 > party. So I split every payment into three phases: a pre-RPC transaction that

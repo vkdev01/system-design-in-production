@@ -101,7 +101,38 @@ flowchart TD
 
 ---
 
-## 5. Build it
+## 5. Sizing the components
+
+Everything in this chapter falls out of one external number — the provider's in-flight limit — so
+the sizing table is really a derivation of the connection count.
+
+| Component | Unit of work | Cost per unit | Peak demand | Provisioned | Headroom |
+|---|---|---|---|---|---|
+| Provider connections | 100 in flight per connection | 100 ÷ 0.05 s = **2,000 sends/s** | 16,700/s | 13 connections | 1.6× |
+| Fan-out workers | 4 connections each | 8,000 sends/s per pod | 16,700/s | 4 pods | 2× |
+| Collector buffer | 0.5 s of burst | 8,350 per pod | 16,700/s | 8,000 per pod | sheds at 0.5 s |
+| Dedupe | 1 `SETNX` | ~0.3 ms | 16,700/s | Redis cluster | 6× |
+| Queue | 1 message per push | — | 1 M messages in a 60 s burst | SQS standard | — |
+
+Show the derivation out loud, because it is the whole design:
+16,700 ÷ (100 in flight ÷ 0.05 s) = **8.4 connections minimum**, so 13 for headroom, which at four
+connections per pod is **4 pods** — and each pod's buffer is half a second of the burst.
+
+**Bytes on the wire.**
+
+- workers → provider: 16,700/s × 1 KB payload = **17 MB/s out**
+- provider → workers: 16,700/s × 200 B ack = **3 MB/s in**
+- queue → workers: 16,700/s × 400 B = **7 MB/s**, and that is the number that sets SQS throughput cost
+
+| Benchmark | How to measure | Target | What it tells you |
+|---|---|---|---|
+| Shed rate | `notify_shed_total` ÷ enqueued | < 1% | the burst exceeded capacity |
+| Queue age | now − oldest message timestamp | < 60 s | delivery is now a product problem |
+| Provider 429 rate | 429s ÷ sends | < 1% | in-flight limit set too high |
+| DLQ depth | dead-letter messages ÷ traffic | < 0.5% | dead device tokens are accumulating |
+| Transactional latency | p99 for priority=transactional during a burst | flat | the shed policy is wired to the right classes |
+
+## 6. Build it
 
 ### Step 1 — the bounded buffer and the demand-driven pusher
 
@@ -272,7 +303,7 @@ The rules worth copying:
 
 ---
 
-## 6. The production layer
+## 7. The production layer
 
 ### KEDA, because HPA cannot see a backlog
 
@@ -385,7 +416,7 @@ one-line KEDA trigger. Use MSK if other systems need to replay the same events.
 
 ---
 
-## 7. The two-minute answer
+## 8. The two-minute answer
 
 > "A notification pipeline is a bounded queue between an unbounded producer and a
 > rate-limited consumer, and the whole design follows from the provider's

@@ -110,7 +110,39 @@ highest-volume traffic class and they must not touch storage.
 
 ---
 
-## 5. Build it
+## 5. Sizing the components
+
+WebSocket servers are sized by memory and file descriptors, not CPU; channel servers are sized by
+memory. Both numbers are easy to get wrong by an order of magnitude.
+
+| Component | Unit of work | Cost per unit | Peak demand | Provisioned | Headroom |
+|---|---|---|---|---|---|
+| Gateway pods | 1 socket + fan-out | ~40k sockets, ~10k sends/s per pod | 500k sockets | 16 pods (8 per region) | 1.3× on sockets |
+| Channel servers | message fan-out | ~16.7k msgs/s per pod | 50k msgs/s | 12 pods | 3.9× |
+| CS memory | 100 messages × 300 B per **active** channel | 2 M active channels = 60 GB | 12 × 8 GB = 96 GB | 1.6× |
+| Subscriptions | channel → socket map | ~30k entries per gateway pod | 500k sockets × 50 channels | 16 pods | — |
+| Ring members | one CS per hash slot | 160 virtual nodes each | 12 pods | `maxUnavailable: 1` | survives one loss |
+
+The memory row is where designs go wrong: keeping a 500-message window for *every* channel would
+need terabytes per host. Keeping 100 messages for the ~2 M channels with recent activity is 60 GB
+across the fleet — which is why "history window" in section 6 is a bounded number, not a promise.
+
+**Bytes on the wire.**
+
+- client → gateway: 50k msgs/s × 300 B = **15 MB/s in**
+- gateway → channel server: same 15 MB/s, plus 1 MB/s of typing events
+- channel server → gateways: 50k × 300 B × fan-out 3 = **45 MB/s out**, ~2.8 MB/s per gateway pod
+- ping/pong keepalive: 500k sockets × 40 B / 30 s = **0.7 MB/s**, but 16k frames/s of CPU
+
+| Benchmark | How to measure | Target | What it tells you |
+|---|---|---|---|
+| Delivery p99 | timestamp at send, timestamp at client | < 500 ms | the end-to-end SLO |
+| Ring heal | time from CS kill to full re-subscribe | < 20 s | the blast radius of a node loss |
+| Slow-consumer drops | `gateway_slow_consumer_drops_total` | < 0.1% of clients | fan-out is not keeping up |
+| CS resident memory | container RSS | < 8 GB | OOMKill risk on the ring |
+| Reconnect rate | new sockets ÷ active sockets per minute | < 5% | a region or CS is failing |
+
+## 6. Build it
 
 ### Step 1 — the consistent hash ring
 
@@ -291,7 +323,7 @@ gateway connection, same policy as clients).
 
 ---
 
-## 6. The production layer
+## 7. The production layer
 
 ### Channel servers: StatefulSet, not Deployment
 
@@ -436,7 +468,7 @@ spec:
 
 ---
 
-## 7. The two-minute answer
+## 8. The two-minute answer
 
 > "Slack's design separates ownership of a conversation from ownership of a
 > socket. Channel Servers are stateful and in-memory, and each one owns a subset of

@@ -1,46 +1,53 @@
 {% extends "base.html" %}
 {% block title %}{{ site.title }} — nine production systems, rebuilt{% endblock %}
-{% block description %}{{ site.tagline }} Nine published engineering post-mortems rebuilt as build-alongs, with the numbers, flow charts, code, Kubernetes and AWS configs, and failure drills.{% endblock %}
+{% block description %}{{ site.tagline }} Nine published engineering post-mortems rebuilt as build-alongs, with the numbers, flow charts, sizing tables, code, Kubernetes and AWS configs, and failure drills.{% endblock %}
 {% block ogtitle %}{{ site.title }}{% endblock %}
 
 {% block body %}
 <main>
 
   <section class="hero">
-    <div class="hero__inner">
-      <p class="eyebrow">A field manual, not a diagram collection</p>
-      <h1 class="hero__title">Diagrams teach you the boxes.<br><em>Write-ups teach you why they broke.</em></h1>
-      <p class="hero__lede">
-        Nine systems from Discord, Stripe, Airbnb, Notion, Figma, Slack and Uber — each rebuilt
-        from first principles: the numbers that decide the design, the flow chart with its failure
-        points, a prototype you can run, the Kubernetes and AWS configs that ship it, and the
-        drills that break it on purpose.
-      </p>
-      <div class="hero__actions">
-        <a class="btn btn--primary" href="{{ site.base }}/foundations/mental-models/">Start with the mental models</a>
-        <a class="btn" href="{{ site.base }}/chapters/01-chat-message-storage/">Jump to chapter 01</a>
-        <a class="btn btn--ghost" href="{{ site.repo }}" rel="noopener">Source on GitHub ↗</a>
+    <div class="sheet">
+      <div class="sheet__head">
+        <span>Engineering Atlas &middot; Production Systems</span>
+        <span>Vol. 01</span>
+        <span>Sheet 01 of 09</span>
       </div>
+      <div class="sheet__body">
+        <p class="eyebrow">A field manual, not a diagram collection</p>
+        <h1 class="hero__title">Diagrams teach you the boxes.<br><em>Write-ups teach you why they broke.</em></h1>
+        <p class="hero__lede">
+          Nine systems from Discord, Stripe, Airbnb, Notion, Figma, Slack and Uber — each rebuilt
+          from first principles: the numbers that decide the design, the flow chart with its failure
+          points, a sizing pass with the bytes on every wire, a prototype you can run, the
+          Kubernetes and AWS configs that ship it, and the drills that break it on purpose.
+        </p>
+        <div class="hero__actions">
+          <a class="btn btn--primary" href="{{ site.base }}/foundations/mental-models/">Start with the mental models</a>
+          <a class="btn" href="{{ site.base }}/chapters/01-chat-message-storage/">Jump to chapter 01</a>
+          <a class="btn btn--ghost" href="{{ site.repo }}" rel="noopener">Source on GitHub ↗</a>
+        </div>
+      </div>
+      <dl class="sheet__meta">
+        {% for n, label in stats %}
+        <div>
+          <dt>{{ label }}</dt>
+          <dd>{{ n }}</dd>
+        </div>
+        {% endfor %}
+      </dl>
     </div>
-    <dl class="stats">
-      {% for n, label in stats %}
-      <div class="stats__item">
-        <dt>{{ n }}</dt>
-        <dd>{{ label }}</dd>
-      </div>
-      {% endfor %}
-    </dl>
   </section>
 
   <section class="band">
     <div class="band__head">
       <h2>The nine systems</h2>
-      <p>Each chapter answers one interview question, and follows the same seven steps.</p>
+      <p>Each chapter answers one interview question, and follows the same eight steps.</p>
     </div>
     <div class="grid grid--3">
       {% for p in sections[1].pages %}
       <a class="card" href="{{ site.base }}/{{ p.url }}">
-        <span class="card__kicker">{{ p.kicker }}</span>
+        <span class="card__kicker">Plate {{ p.kicker }}</span>
         <h3 class="card__title">{{ p.title }}</h3>
         <p class="card__meta">{{ p.meta }}</p>
         <p class="card__blurb">{{ p.blurb }}</p>
@@ -50,19 +57,20 @@
     </div>
   </section>
 
-  <section class="band band--tint">
+  <section class="band">
     <div class="band__head">
       <h2>How every chapter is built</h2>
-      <p>Same seven steps, so you can navigate from muscle memory and reuse the shape in an interview.</p>
+      <p>Same eight steps, so you can navigate from muscle memory and reuse the shape in an interview.</p>
     </div>
     <ol class="steps">
       <li><span class="steps__n">01</span><b>The problem</b><span>The naive design, and the exact line of load where it dies.</span></li>
       <li><span class="steps__n">02</span><b>The numbers</b><span>Real production figures, plus the arithmetic that predicts the wall.</span></li>
       <li><span class="steps__n">03</span><b>The mental model</b><span>One sentence. If you cannot say it, you do not own it.</span></li>
       <li><span class="steps__n">04</span><b>The flow chart</b><span>Every arrow annotated with what happens when it fails.</span></li>
-      <li><span class="steps__n">05</span><b>Build it</b><span>From docker compose on a laptop to a working prototype.</span></li>
-      <li><span class="steps__n">06</span><b>The production layer</b><span>k8s manifests, AWS services, limits, alerts, drills.</span></li>
-      <li><span class="steps__n">07</span><b>The answer</b><span>Two spoken minutes with the numbers in it, and the follow-ups.</span></li>
+      <li><span class="steps__n">05</span><b>Sizing</b><span>Per-component capacity, bytes on every wire, benchmark targets.</span></li>
+      <li><span class="steps__n">06</span><b>Build it</b><span>From docker compose on a laptop to a working prototype.</span></li>
+      <li><span class="steps__n">07</span><b>The production layer</b><span>k8s manifests, AWS services, limits, alerts, drills.</span></li>
+      <li><span class="steps__n">08</span><b>The answer</b><span>Two spoken minutes with the numbers in it, and the follow-ups.</span></li>
     </ol>
   </section>
 
@@ -75,7 +83,7 @@
       {% for sec in [sections[0], sections[2]] %}
         {% for p in sec.pages %}
         <a class="card card--slim" href="{{ site.base }}/{{ p.url }}">
-          <span class="card__kicker">{{ sec.label }} · {{ p.kicker }}</span>
+          <span class="card__kicker">{{ sec.label }} · Plate {{ p.kicker }}</span>
           <h3 class="card__title">{{ p.title }}</h3>
           <p class="card__blurb">{{ p.blurb }}</p>
         </a>
@@ -84,8 +92,11 @@
     </div>
   </section>
 
-  <section class="band band--prose">
-    <div class="prose prose--home">
+  <section class="band">
+    <div class="band__head">
+      <h2>Using the atlas</h2>
+    </div>
+    <div class="prose">
       {{ body | safe }}
     </div>
   </section>

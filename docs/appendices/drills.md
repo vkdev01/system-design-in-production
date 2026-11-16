@@ -5,7 +5,7 @@ can say the answer in two minutes. This appendix is the cheat sheet for both.
 
 ---
 
-## Part 1 — The nine scripts, condensed
+## Part 1 — The thirteen scripts, condensed
 
 Each is the two-minute answer with the numbers kept and the prose trimmed. Read
 these the night before an interview.
@@ -152,6 +152,69 @@ these the night before an interview.
 > presence check to skip pushes for active users, jittered retries, dead-token
 > deletion on 4xx, and a DLQ.
 
+### 10 · LLM inference serving
+
+> Inference is memory-bound, so the serving layer is an operating system for GPU
+> memory. The KV cache is the scarce resource: an 8B model with grouped-query
+> attention needs ~128 KB per token, so one 8k conversation holds 1 GB, and on
+> an 80 GB H100 with 16 GB of weights you fit ~64 such streams. That caps
+> concurrency long before FLOPs do. Pre-paging systems reserve max_seq_len per
+> request and waste 60–80% of cache memory; paged attention allocates fixed
+> blocks on demand with a block table per sequence, waste under 4%, and 2–4×
+> throughput at the same latency. On top: continuous batching — one scheduler
+> iteration per decode step, admit when free blocks allow, evict on EOS, chunked
+> prefill so a 30k-token prompt cannot stall everyone's next token, and preempt
+> the youngest request when memory runs dry. Operationally: autoscale on queue
+> depth with a warm minimum (a replica takes 90 s to load weights), bound the
+> queue and return 429, and alert on preemptions and KV utilisation rather than
+> GPU percentage.
+
+### 11 · Retrieval-augmented generation
+
+> RAG is a recall problem with an SLO, so the eval harness ships before the
+> pipeline. The published ablation is the design: dense-only fails on 5.7% of
+> queries at top 20; adding document context to each chunk before embedding
+> takes it to 3.7%; adding contextual BM25 alongside the vectors takes it to
+> 2.9%; reranking 150 candidates down to 20 takes it to 1.9%. Each layer attacks
+> a different failure mode and they stack. The pipeline: chunk at ~600 tokens
+> with overlap, prepend 50–100 tokens of context at ingest, index the same text
+> densely and lexically, then at query time rewrite, retrieve top-100 from each
+> in parallel, fuse by reciprocal rank — ranks, not scores — rerank the
+> survivors, pack 20 chunks, generate with numbered citations and verify every
+> citation resolves to a retrieved chunk. Ten million chunks at 768 dimensions
+> is 30 GB of vectors, ~46 GB with the HNSW graph, so three shards; reranking
+> 150 × 500 q/s is 75k evaluations per second, so batching is the design.
+
+### 12 · The agent runtime
+
+> An agent run is a saga, not a chat session. Forty minutes at two seconds a
+> step is ~1,200 steps, so state cannot live in the process: the run is a
+> durable row with an append-only step log, and a repair worker resumes anything
+> whose lease expired. Each tool call gets a stable key of run id plus step and
+> its result is cached, so a retry replays instead of doing the work twice —
+> chapter 04's idempotency applied to shell commands. The log is written before
+> the effect, never after. Budgets are enforced every step (steps, tokens, wall
+> clock, cost) and hitting one is a normal terminal state; at ~$20 a run an
+> uncapped loop is a way to spend a thousand dollars overnight. Context is
+> compacted at 70% of the window. Tool output is data, never instructions, so
+> privileged tools are denied after an untrusted read and everything runs in a
+> sandbox pod with no default network.
+
+### 13 · Evals as a production system
+
+> A pass rate is an estimate with a confidence interval. To detect a 5-point
+> change at 95% confidence and 80% power you need ~1,600 examples per arm; 2
+> points needs ~9,800; 1 point ~39,000. So a 2,000-example set can only see
+> large moves, and a gate of "no more than 1 point down" on a noisy set pages on
+> noise — measure the run-to-run variance first (typically 0.5–1 point) and set
+> the threshold above it. Replay must be deterministic: recorded tool outputs, a
+> pinned seed, and a hard failure on an unrecorded call. The judge is a proxy —
+> calibrate against 200 human labels, track kappa, re-calibrate on rubric
+> changes. Slices are mandatory, because an average that improves while one
+> segment collapses is a regression. Cost: 10k examples is ~25M tokens, roughly
+> $135 plus $40 to judge, ten minutes at fifty concurrent workers — nightly,
+> with a 2,000-example subset on pull requests.
+
 ---
 
 ## Part 2 — The follow-up matrix
@@ -237,3 +300,9 @@ Answer without notes. If you cannot, re-read that chapter's §2 and §3.
 13. What is the drop policy when the notification buffer is full, and who decides
     it?
 14. Which two numbers decide almost every design in this manual?
+15. How much KV cache does one token cost, and what does that imply for batch
+    size on an 80 GB GPU?
+16. What did contextualisation do to retrieval failure, and what did reranking
+    add on top?
+17. Why must an agent write the step log before performing the tool call?
+18. How many examples do you need to detect a 2-point change in a pass rate?

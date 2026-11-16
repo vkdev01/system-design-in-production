@@ -8,7 +8,7 @@
     <div class="meta">Reference library</div>
     <h1>Diagrams teach you the boxes. Write-ups teach you why they broke.</h1>
     <p class="sub">
-      Nine systems from Discord, Stripe, Airbnb, Notion, Figma, Slack and Uber — each rebuilt from
+      Thirteen systems — from Discord, Stripe, Airbnb, Notion, Figma, Slack and Uber to vLLM, RAG and agent runtimes — each rebuilt from
       first principles: the numbers that decide the design, the annotated flow chart, a sizing pass
       with the bytes on every wire, a prototype you can run, the Kubernetes and AWS configs that ship
       it, and the drills that break it on purpose.
@@ -23,10 +23,30 @@
   <section class="catalogue" id="contents">
     <div class="catalogue-head">
       <h2>Chapters</h2>
-      <span>one question each, eight steps per chapter</span>
+      <span>one question each, nine steps per chapter</span>
     </div>
     <div class="cards">
-      {% for p in sections[1].pages %}
+      {% for p in chapter_pages %}
+      <a class="card" href="{{ site.base }}/{{ p.url }}">
+        <div class="card-top">
+          <span class="card-num">{{ p.kicker }}</span>
+          <span class="card-time">{{ p.meta }}</span>
+        </div>
+        <h3 class="card-title">{{ p.title }}</h3>
+        <p class="card-desc">{{ p.blurb }}</p>
+        <span class="card-foot">Read the chapter <span class="arrow">→</span></span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="catalogue">
+    <div class="catalogue-head">
+      <h2>AI systems</h2>
+      <span>inference, retrieval, agents, evals — same nine steps</span>
+    </div>
+    <div class="cards">
+      {% for p in ai_pages %}
       <a class="card" href="{{ site.base }}/{{ p.url }}">
         <div class="card-top">
           <span class="card-num">{{ p.kicker }}</span>
@@ -46,7 +66,7 @@
       <span>read these three first</span>
     </div>
     <div class="cards">
-      {% for p in sections[0].pages %}
+      {% for p in foundation_pages %}
       <a class="card" href="{{ site.base }}/{{ p.url }}">
         <div class="card-top">
           <span class="card-num">{{ p.kicker }}</span>
@@ -66,7 +86,7 @@
       <span>the cross-chapter reference</span>
     </div>
     <div class="cards">
-      {% for p in sections[2].pages %}
+      {% for p in appendix_pages %}
       <a class="card" href="{{ site.base }}/{{ p.url }}">
         <div class="card-top">
           <span class="card-num">{{ p.kicker }}</span>

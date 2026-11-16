@@ -1,6 +1,6 @@
 # Appendix A · Kubernetes and AWS patterns
 
-The same handful of primitives appear in all nine chapters. This is the cross-chapter
+The same handful of primitives appear in all thirteen chapters. This is the cross-chapter
 catalogue: what to use, the exact knob, and the failure it prevents. Everything here
 is copy-paste shaped; the per-chapter manifests under `deploy/` are the worked
 examples.

@@ -225,7 +225,7 @@ deploy never takes two ring members at once. Chapter
 ## The two numbers rule
 
 Before you draw anything, get two numbers: **peak QPS** and **p99 budget**. Every
-design decision in these nine chapters is downstream of those two numbers. When an
+design decision in these thirteen chapters is downstream of those two numbers. When an
 interviewer gives you vague requirements, propose them yourself and say why:
 
 > "Let me assume 50 million daily active users, 40 messages per user per day, with

@@ -1,0 +1,70 @@
+# Chapter 12: the durable agent worker and its repair loop.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: agent-worker, namespace: agents }
+spec:
+  replicas: 6
+  selector: { matchLabels: { app: agent-worker } }
+  template:
+    metadata:
+      labels: { app: agent-worker }
+      annotations: { prometheus.io/scrape: "true", prometheus.io/port: "8080" }
+    spec:
+      serviceAccountName: agent-worker
+      containers:
+        - name: worker
+          image: ghcr.io/example/agent-worker:0.9.0
+          args: ["--max-concurrent=1", "--lease=60s", "--compact-at=0.7"]
+          env:
+            - { name: DATABASE_URL, valueFrom: { secretKeyRef: { name: agents-db, key: url } } }
+            - { name: SANDBOX_IMAGE, value: ghcr.io/example/sandbox:2026.03 }
+          resources:
+            requests: { cpu: 500m, memory: 512Mi }
+            limits: { memory: 1Gi }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            periodSeconds: 5
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: agent-repair, namespace: agents }
+spec:
+  schedule: "*/1 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: repair
+              image: ghcr.io/example/agent-worker:0.9.0
+              args: ["repair", "--stale-after=5s", "--limit=50"]
+              env:
+                - { name: DATABASE_URL, valueFrom: { secretKeyRef: { name: agents-db, key: url } } }
+---
+# The sandbox: no network by default, read-only rootfs, its own identity.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: agent-sandbox, namespace: agents }
+spec:
+  replicas: 4
+  selector: { matchLabels: { app: agent-sandbox } }
+  template:
+    metadata:
+      labels: { app: agent-sandbox }
+      annotations: { "container.apparmor.security.beta.kubernetes.io/sandbox": "runtime/default" }
+    spec:
+      runtimeClassName: gvisor
+      automountServiceAccountToken: false
+      containers:
+        - name: sandbox
+          image: ghcr.io/example/sandbox:2026.03
+          resources:
+            requests: { cpu: "1", memory: 512Mi }
+            limits: { cpu: "2", memory: 1Gi }
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }

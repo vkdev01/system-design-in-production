@@ -75,7 +75,7 @@
 
   <div class="statrow">
     <span><b>{{ page.h2s|default(0) }}</b> sections</span>
-    <span><b>{{ page.figs|default(0) }}</b> diagrams</span>
+    <span><b>{{ page.figs|default(0) }}</b> {{ "diagram" if page.figs == 1 else "diagrams" }}</span>
     <span><b>{{ page.words|default(0) }}</b> words</span>
     {% if page.prev %}<span><a href="{{ site.base }}/{{ page.prev.url }}">← {{ page.prev.title }}</a></span>{% endif %}
   </div>

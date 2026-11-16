@@ -29,7 +29,7 @@ OUT = ROOT / "dist"
 
 SITE = {
     "title": "System Design in Production",
-    "tagline": "Nine production systems, rebuilt from first principles.",
+    "tagline": "Thirteen production systems, rebuilt from first principles.",
     "repo": "https://github.com/vkdev01/system-design-in-production",
     "url": "https://vkdev01.github.io/system-design-in-production",
     # Project pages live under /<repo>/, so every template link needs the prefix.
@@ -137,6 +137,41 @@ SECTIONS = [
         ],
     },
     {
+        "id": "ai",
+        "label": "AI systems",
+        "blurb": "Inference, retrieval, agents and evals: the same discipline applied to models.",
+        "pages": [
+            {
+                "src": "chapters/10-llm-inference-serving.md",
+                "title": "LLM inference serving",
+                "kicker": "10",
+                "meta": "vLLM",
+                "blurb": "Paged KV cache, continuous batching, chunked prefill: an operating system for GPU memory.",
+            },
+            {
+                "src": "chapters/11-retrieval-augmented-generation.md",
+                "title": "Retrieval-augmented generation",
+                "kicker": "11",
+                "meta": "Anthropic",
+                "blurb": "Contextual chunks, hybrid retrieval, reranking: 5.7% to 1.9% retrieval failure, and how to measure it.",
+            },
+            {
+                "src": "chapters/12-agent-runtime.md",
+                "title": "The agent runtime",
+                "kicker": "12",
+                "meta": "Durable execution",
+                "blurb": "A forty-minute model-driven loop that survives a pod restart, with idempotent tools and budgets.",
+            },
+            {
+                "src": "chapters/13-evals.md",
+                "title": "Evals as a production system",
+                "kicker": "13",
+                "meta": "Statistics",
+                "blurb": "Sample sizes, calibrated judges, slices and a gate: regression testing for non-deterministic systems.",
+            },
+        ],
+    },
+    {
         "id": "appendices",
         "label": "Appendices",
         "blurb": "The cross-chapter reference material.",
@@ -173,12 +208,13 @@ THEMES = [
     {"id": "wine", "label": "Wine", "swatch": "#9d2f3d"},
 ]
 
-STATS = [
-    ("09", "production systems"),
-    ("17", "numbered figures"),
-    ("144", "files in the repo"),
-    ("40k", "words of walkthrough"),
-]
+# Stats are computed at build time so they cannot drift from the content.
+def repo_file_count() -> int:
+    skip = {"dist", ".git", "__pycache__", "node_modules", ".venv"}
+    return sum(
+        1 for p in ROOT.rglob("*")
+        if p.is_file() and not (set(p.relative_to(ROOT).parts) & skip)
+    )
 
 # --------------------------------------------------------------------------
 # Markdown
@@ -506,12 +542,31 @@ def build() -> None:
                 }
             )
 
+    total_figs = sum(p.get("figs", 0) for p in flat_pages)
+    # count the source markdown, so the number includes code and configs
+    total_words = sum(
+        len(re.findall(r"\w+", f.read_text())) for f in DOCS.rglob("*.md")
+    )
+    stats = [
+        (f"{len(flat_pages):02d}", "chapters and appendices"),
+        (str(total_figs), "numbered figures"),
+        (str(repo_file_count()), "files in the repo"),
+        (f"{round(total_words / 1000)}k", "words of walkthrough"),
+    ]
+
+    def pages_of(section_id: str) -> list[dict]:
+        return next((sec["pages"] for sec in SECTIONS if sec["id"] == section_id), [])
+
     home = env.get_template("home.html").render(
         site=SITE,
         sections=SECTIONS,
-        stats=STATS,
+        stats=stats,
         body=home_body,
         themes=THEMES,
+        chapter_pages=pages_of("chapters"),
+        ai_pages=pages_of("ai"),
+        foundation_pages=pages_of("foundations"),
+        appendix_pages=pages_of("appendices"),
     )
     (OUT / "index.html").write_text(home)
 

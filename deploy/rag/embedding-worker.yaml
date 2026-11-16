@@ -1,0 +1,57 @@
+# Chapter 11: ingest pipeline. Contextualise, embed, index -- idempotent per
+# chunk id, so a re-run overwrites rather than duplicating.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: rag-embed, namespace: rag }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: rag-embed } }
+  template:
+    metadata:
+      labels: { app: rag-embed }
+      annotations: { prometheus.io/scrape: "true", prometheus.io/port: "9090" }
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/example/rag-worker:1.2.0
+          args: ["--batch=64", "--index-version=current", "--contextualise"]
+          env:
+            - { name: VECTOR_URL, valueFrom: { secretKeyRef: { name: rag, key: vector-url } } }
+            - { name: LEXICAL_URL, valueFrom: { secretKeyRef: { name: rag, key: lexical-url } } }
+            - { name: QUEUE_URL, valueFrom: { secretKeyRef: { name: rag, key: queue-url } } }
+          resources:
+            requests: { cpu: "2", memory: 4Gi }
+            limits: { memory: 8Gi }
+          readinessProbe:
+            httpGet: { path: /ready, port: 9090 }
+            periodSeconds: 5
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata: { name: rag-embed, namespace: rag }
+spec:
+  scaleTargetRef: { name: rag-embed }
+  minReplicaCount: 1
+  maxReplicaCount: 12
+  triggers:
+    - type: aws-sqs-queue
+      metadata:
+        queueURL: https://sqs.ap-south-1.amazonaws.com/123/rag-ingest
+        queueLength: "2000"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: rag-eval-nightly, namespace: rag }
+spec:
+  schedule: "30 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: recall
+              image: ghcr.io/example/rag-eval:1.2.0
+              args: ["--golden=golden.jsonl", "--fail-under=0.95"]
+              resources:
+                requests: { cpu: 500m, memory: 1Gi }

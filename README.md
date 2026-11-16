@@ -6,7 +6,7 @@ who actually ran them published.**
 
 Read it as a site: **https://vkdev01.github.io/system-design-in-production/**
 
-Nine production write-ups are the spine of this repo:
+Nine production write-ups plus four AI-systems chapters are the spine of this repo:
 
 | # | The interview question | The write-up it comes from |
 |---|---|---|
@@ -19,6 +19,10 @@ Nine production write-ups are the spine of this repo:
 | 07 | Design Slack | Real-time Messaging (Slack Engineering) |
 | 08 | Design driver matching for Uber | H3: Uber's hexagonal spatial index |
 | 09 | Design a notification system | How Discord handles push request bursts of over a million per minute |
+| 10 | Serve a 70B model at 100 req/s | Efficient Memory Management for LLM Serving with PagedAttention (SOSP '23) |
+| 11 | Answer questions over 10M docs with citations | Introducing Contextual Retrieval (Anthropic) |
+| 12 | An agent that survives a pod restart | Building effective agents (Anthropic) + chapters 04/05 |
+| 13 | Ship a model change safely | Two-proportion testing, calibrated judges, slices |
 
 Each chapter follows the same nine-step path: the problem and the naive design, the numbers
 that decide it, the mental model, the annotated flow chart, a sizing pass (per-component
@@ -64,7 +68,7 @@ third-party CDN at runtime.
 ```
 docs/           the manual, as markdown (the only content source)
   foundations/  mental models, capacity numbers, the 9-step method
-  chapters/     the nine chapters
+  chapters/     the thirteen chapters
   appendices/   k8s + AWS pattern library, drills, sources
 site_builder/   build.py, Jinja templates, stylesheet, scripts, vendored mermaid
 code/           runnable prototypes, one directory per chapter
@@ -85,6 +89,10 @@ dist/           build output (generated, not committed)
 | 07 | `code/realtime/` | `go run ./code/realtime/cmd/gateway` |
 | 08 | `code/geo/` | `python code/geo/match.py` |
 | 09 | `code/notify/` | `go run ./code/notify` |
+| 10 | `code/inference/` | `python bench.py --requests 60` |
+| 11 | `code/rag/` | `python eval_recall.py --config all` |
+| 12 | `code/agents/` | `python test_resume.py --kill-after 2` |
+| 13 | `code/evals/` | `python run.py --config sneaky --baseline baseline` |
 
 ## Licence
 

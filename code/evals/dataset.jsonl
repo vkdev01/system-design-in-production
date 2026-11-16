@@ -1,0 +1,20 @@
+{"id":"e01","input":"How do I rotate an API key?","expected":"rotate key vault","slice":"easy","tools":[]}
+{"id":"e02","input":"What is the retention window for audit logs?","expected":"retention 90 days audit","slice":"easy","tools":[]}
+{"id":"e03","input":"Can I have two owners on one workspace?","expected":"multiple owners allowed","slice":"easy","tools":[]}
+{"id":"e04","input":"Why did my last deploy fail?","expected":"check build logs rollback","slice":"tool_use","tools":["get_deploys"]}
+{"id":"e05","input":"Show the error rate for checkout yesterday","expected":"metrics error rate checkout","slice":"tool_use","tools":["get_metrics"]}
+{"id":"e06","input":"Who changed the pricing config last week?","expected":"audit log user change pricing","slice":"tool_use","tools":["get_audit"]}
+{"id":"e07","input":"Refund order 8821 fully","expected":"refund order lookup then refund","slice":"actions","tools":["get_order","refund"]}
+{"id":"e08","input":"Pause billing for tenant acme until Friday","expected":"pause billing tenant schedule resume","slice":"actions","tools":["update_billing"]}
+{"id":"e09","input":"Move all open tickets from Ana to Ravi","expected":"reassign tickets owner","slice":"actions","tools":["list_tickets","update_ticket"]}
+{"id":"e10","input":"Explain the difference between a pod and a shard","expected":"pod isolated stack shard database partition","slice":"explain","tools":[]}
+{"id":"e11","input":"What happens during a shard split?","expected":"copy chunk dual write flip routing","slice":"explain","tools":[]}
+{"id":"e12","input":"Why is my p99 latency higher than p50?","expected":"tail latency distribution outliers","slice":"explain","tools":[]}
+{"id":"e13","input":"Set up SSO for our team","expected":"saml configuration metadata","slice":"setup","tools":["get_sso_config","update_sso"]}
+{"id":"e14","input":"Add a webhook for payment failures","expected":"webhook endpoint subscribe events","slice":"setup","tools":["create_webhook"]}
+{"id":"e15","input":"Enable IP allowlisting","expected":"allowlist cidr configuration","slice":"setup","tools":["update_network"]}
+{"id":"e16","input":"What is the SLA for the payments API?","expected":"sla 99.95 availability","slice":"easy","tools":[]}
+{"id":"e17","input":"Do you support Postgres 16?","expected":"postgres 16 supported","slice":"easy","tools":[]}
+{"id":"e18","input":"How many retries does the webhook sender do?","expected":"retries backoff webhook delivery","slice":"easy","tools":[]}
+{"id":"e19","input":"Cancel my subscription at the end of the month","expected":"cancel subscription period end","slice":"actions","tools":["get_subscription","cancel_subscription"]}
+{"id":"e20","input":"Which region is closest to Mumbai?","expected":"ap-south-1 region mumbai","slice":"easy","tools":[]}

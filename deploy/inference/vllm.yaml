@@ -1,0 +1,62 @@
+# Chapter 10: an inference deployment. Scale on queue depth, never on CPU --
+# GPU utilisation sits at 100% by design and tells you nothing.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: llm-8b, namespace: inference }
+spec:
+  replicas: 2
+  strategy: { rollingUpdate: { maxUnavailable: 0, maxSurge: 1 } }
+  selector: { matchLabels: { app: llm-8b } }
+  template:
+    metadata:
+      labels: { app: llm-8b }
+      annotations: { prometheus.io/scrape: "true", prometheus.io/port: "8000" }
+    spec:
+      nodeSelector: { cloud.google.com/gke-accelerator: nvidia-h100-80gb }
+      tolerations:
+        - { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule }
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:v0.6.3
+          args:
+            - --model=meta-llama/Meta-Llama-3-8B-Instruct
+            - --max-model-len=8192
+            - --gpu-memory-utilization=0.92
+            - --max-num-seqs=64
+            - --enable-prefix-caching
+            - --swap-space=16
+          ports: [{ containerPort: 8000 }]
+          resources:
+            limits: { nvidia.com/gpu: "1", memory: 64Gi }
+          startupProbe:
+            httpGet: { path: /health, port: 8000 }
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            periodSeconds: 10
+            failureThreshold: 30
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata: { name: llm-8b, namespace: inference }
+spec:
+  scaleTargetRef: { name: llm-8b }
+  minReplicaCount: 2
+  maxReplicaCount: 8
+  cooldownPeriod: 600
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring:9090
+        metricName: vllm_num_requests_waiting
+        query: sum(vllm:num_requests_waiting{app="llm-8b"})
+        threshold: "8"
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: llm-8b, namespace: inference }
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: llm-8b } }

@@ -16,24 +16,27 @@ theme:
     - navigation.indexes
     - navigation.top
     - navigation.footer
+    - navigation.path
+    - content.tooltips
     - toc.follow
     - content.code.copy
     - content.code.annotate
     - content.tabs.link
     - search.suggest
     - search.highlight
+  font: false          # system font stack: faster, and no third-party request
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: indigo
-      accent: deep orange
+      primary: black
+      accent: indigo
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: indigo
-      accent: deep orange
+      primary: black
+      accent: indigo
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode

@@ -37,6 +37,9 @@ jobs:
           test -f dist/search-index.json
           test -f dist/.nojekyll
           echo "pages: $(find dist -name '*.html' | wc -l)"
+      - name: Check every diagram renders
+        # a diagram with a syntax error renders a red error box, not an SVG
+        run: python site_builder/check_diagrams.py dist
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

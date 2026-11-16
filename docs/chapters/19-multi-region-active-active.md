@@ -87,7 +87,7 @@ flowchart TD
     HC -->|"region down"| FO["Failover runbook<br/>promote, flip DNS, drain"]
     FO --> R1
     style HC fill:#fff7ed,stroke:#f97316
-    style M <-->|"async replication<br/>100-500 ms lag"| S
+    style MDB fill:#eef2ff,stroke:#6366f1
 ```
 
 Note the dotted arrow: a read for a key whose home is the *other* region either

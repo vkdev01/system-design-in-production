@@ -293,6 +293,26 @@ def _mermaid_fence(source, language, class_name, options, md, **kwargs):
     return f'<pre class="mermaid">{html.escape(source)}</pre>'
 
 
+def lint_mermaid(text: str) -> list[str]:
+    """Catch the mermaid mistakes that silently render an error box.
+
+    The one that bit us: `style` takes a node id, not an edge, so
+    `style A --> B fill:...` fails the whole diagram.
+    """
+    problems = []
+    for m in re.finditer(r"^\s*style\s+(.+?)\s+[a-z-]+:.*$", text, re.M):
+        target = m.group(1)
+        if any(tok in target for tok in ("-->", "---", "<--", "-.-", "==>", "|")):
+            problems.append(f"style target is not a node id: {target!r}")
+    for m in re.finditer(r"^\s*(flowchart|graph|sequenceDiagram|stateDiagram)", text, re.M):
+        pass
+    if text.count('"') % 2:
+        problems.append("odd number of double quotes")
+    if text.count("[") != text.count("]"):
+        problems.append("unbalanced square brackets")
+    return problems
+
+
 def _pseudo_fence(source, language, class_name, options, md, **kwargs):
     """A pseudocode block: escaped, no syntax colouring, labelled as such."""
     return (
@@ -527,6 +547,9 @@ def plain_text(body_html: str) -> str:
 # --------------------------------------------------------------------------
 # Build
 # --------------------------------------------------------------------------
+MERMAID_PROBLEMS: list[str] = []
+
+
 def build() -> None:
     if OUT.exists():
         shutil.rmtree(OUT)

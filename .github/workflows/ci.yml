@@ -16,6 +16,8 @@ jobs:
       - run: pip install -r requirements.txt pyyaml
       - name: Build the site
         run: python site_builder/build.py
+      - name: Check every diagram renders
+        run: python site_builder/check_diagrams.py dist
       - name: Every markdown page is reachable from the nav
         run: |
           python - <<'PY'

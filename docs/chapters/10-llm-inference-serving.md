@@ -53,8 +53,8 @@ state — the rest was internal and external fragmentation.
 Two numbers decide everything: how much KV cache one token costs, and how fast
 you can stream weights out of memory.
 
-**KV cache per token.** For a model with $L$ layers, $H_{kv}$ key/value heads
-(grouped-query attention), head dimension $d$, in FP16:
+**KV cache per token.** For a model with \(L\) layers, \(H_{kv}\) key/value heads
+(grouped-query attention), head dimension \(d\), in FP16:
 
 $$
 \text{bytes/token} = 2 \times H_{kv} \times d \times 2 \times L
@@ -74,7 +74,7 @@ $$
 $$
 
 An 8B model in FP16 is 16 GB; an H100 has ~3.35 TB/s of HBM3, so
-$16/3350 \approx 4.8$ ms/token, about **200 tokens/s for a single stream**, no
+\(16/3350 \\approx 4.8\) ms/token, about **200 tokens/s for a single stream**, no
 matter how many tensor cores are idle. A 70B model at 140 GB is ~42 ms/token
 across 8 GPUs with tensor parallelism — roughly 24 tokens/s per stream.
 
@@ -84,7 +84,7 @@ across 8 GPUs with tensor parallelism — roughly 24 tokens/s per stream.
 | Waste with paged blocks | **under 4%** | near-full memory utilisation |
 | Throughput gain | **2–4×** at equal latency vs FasterTransformer/Orca | the same GPUs, three times the traffic |
 | Concurrency, 8B on 80 GB | ~64 GB free ÷ 1 GB per 8k sequence = **~64 streams** | this, not FLOPs, sets your capacity |
-| Time-to-first-token | dominated by prefill: $2PT$ FLOPs for $T$ prompt tokens | a 8k prompt is 64× the prefill of a 128-token one |
+| Time-to-first-token | dominated by prefill: \(2PT\) FLOPs for \(T\) prompt tokens | a 8k prompt is 64× the prefill of a 128-token one |
 | Cost | one H100-hour at ~$3 serving 200 tok/s ≈ **$4 per million output tokens** | the number your pricing has to clear |
 
 ---

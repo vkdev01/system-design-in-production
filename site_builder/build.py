@@ -268,7 +268,13 @@ EXT_CONFIGS = {
             {"name": "pseudo", "class": "pseudo", "format": _pseudo_fence},
         ]
     },
-    "pymdownx.arithmatex": {"generic": True},
+    # inline math uses \( \) only: a single $ is a currency symbol in this
+    # manual, and "$3 ... $4" was being parsed as an equation.
+    "pymdownx.arithmatex": {
+        "generic": True,
+        "inline_syntax": ["round"],
+        "block_syntax": ["dollar", "square", "begin"],
+    },
     "pymdownx.tasklist": {"custom_checkbox": True},
 }
 

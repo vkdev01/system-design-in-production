@@ -60,9 +60,9 @@ SECTIONS = [
             },
             {
                 "src": "foundations/method.md",
-                "title": "The 7-step method",
+                "title": "The 8-step method",
                 "kicker": "Model 03",
-                "blurb": "The shape every chapter follows, plus the timed structure of a 45-minute system design interview.",
+                "blurb": "The eight steps every chapter follows, plus the timed structure of a 45-minute system design interview.",
             },
         ],
     },

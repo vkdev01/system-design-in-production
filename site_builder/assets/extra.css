@@ -218,3 +218,61 @@
   .topbar .idx-toggle,
   .crumbrow .idx-toggle { display: inline-flex; }
 }
+
+
+/* ---------- maths ----------
+   MathJax renders to inline SVG and inherits `color`, so it follows the scheme
+   with no re-render. Long display equations scroll instead of overflowing. */
+.prose .arithmatex { overflow-x: auto; }
+.prose p .arithmatex,
+.prose li .arithmatex { display: inline-block; vertical-align: baseline; }
+.prose .arithmatex > div { margin: 18px 0; }
+mjx-container[jax="SVG"] { color: var(--ink); }
+mjx-container[jax="SVG"][display="true"] {
+  display: block;
+  margin: 22px 0;
+  padding: 4px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+mjx-container[jax="SVG"] svg { max-width: none; }
+
+/* ---------- task lists ----------
+   pymdownx emits a label + a fake indicator; the native checkbox is clearer. */
+.prose .task-list { list-style: none; padding-left: 0; margin: 0 0 20px; }
+.prose .task-list-item {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  padding-left: 0;
+  margin-bottom: 8px;
+}
+.prose .task-list-item::marker { content: none; }
+.prose .task-list-control { display: inline-flex; align-items: center; margin-top: 6px; }
+.prose .task-list-control input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: default;
+}
+.prose .task-list-indicator { display: none; }
+
+/* ---------- heading anchors ----------
+   A quiet link that appears on hover, so every section is citable. */
+.prose .headerlink {
+  margin-left: 9px;
+  color: var(--faint);
+  text-decoration: none;
+  opacity: 0;
+  font-weight: 400;
+  transition: opacity 0.12s;
+}
+.prose .headerlink::after { content: "#"; }
+.prose h2:hover .headerlink,
+.prose h3:hover .headerlink,
+.prose .headerlink:focus { opacity: 1; }
+
+/* callout titles are uppercased; keep identifiers in their real casing */
+.ann > b code,
+.ann > b a { text-transform: none; letter-spacing: 0; font-size: 12.5px; }

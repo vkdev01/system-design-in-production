@@ -119,7 +119,7 @@ memory. Both numbers are easy to get wrong by an order of magnitude.
 |---|---|---|---|---|---|
 | Gateway pods | 1 socket + fan-out | ~40k sockets, ~10k sends/s per pod | 500k sockets | 16 pods (8 per region) | 1.3× on sockets |
 | Channel servers | message fan-out | ~16.7k msgs/s per pod | 50k msgs/s | 12 pods | 3.9× |
-| CS memory | 100 messages × 300 B per **active** channel | 2 M active channels = 60 GB | 12 × 8 GB = 96 GB | 1.6× |
+| CS memory | 100 messages × 300 B per **active** channel | ~30 KB per channel | 2 M active channels = 60 GB | 12 × 8 GB = 96 GB | 1.6× |
 | Subscriptions | channel → socket map | ~30k entries per gateway pod | 500k sockets × 50 channels | 16 pods | — |
 | Ring members | one CS per hash slot | 160 virtual nodes each | 12 pods | `maxUnavailable: 1` | survives one loss |
 

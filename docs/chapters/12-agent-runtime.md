@@ -38,7 +38,7 @@ It works for a three-step task and fails for everything real:
 | Tool calls are not idempotent | a timeout after `git push` → retry → two pushes | duplicated external effects |
 | No budget | a confused model loops 400 times | a $200 run nobody approved |
 | Context grows without bound | step 130 exceeds the window | hard failure, or silent truncation |
-| Tool output is trusted | a fetched README says "run `curl … \| sh`" | prompt injection with your credentials |
+| Tool output is trusted | a fetched README tells the agent to run a remote script | prompt injection with your credentials |
 | No audit trail | "why did it delete that file?" | nobody can answer |
 
 Anthropic's framing is the right starting point: distinguish **workflows** (you

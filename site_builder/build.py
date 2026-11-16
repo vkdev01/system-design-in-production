@@ -186,7 +186,7 @@ SECTIONS = [
                 "src": "appendices/drills.md",
                 "title": "Failure drills and interview scripts",
                 "kicker": "B",
-                "blurb": "Nine condensed two-minute answers, the follow-up matrix, one break-it command per chapter, and a 45-minute mock.",
+                "blurb": "Thirteen condensed two-minute answers, the follow-up matrix, one break-it command per chapter, and a 45-minute mock.",
             },
             {
                 "src": "appendices/sources.md",
@@ -376,13 +376,16 @@ def find_div_end(s: str, start: int) -> int:
     return i
 
 
+# The theme styles the card on `.ann`; a variant class only sets the colour
+# variables, so both are required -- `class="ann ann-warn"`, never `ann-warn`.
 ADMON_CLASSES = {
     "note": "ann", "info": "ann", "abstract": "ann", "summary": "ann", "tldr": "ann",
-    "tip": "ann-tip", "hint": "ann-tip", "success": "ann-tip", "check": "ann-tip",
-    "warning": "ann-warn", "caution": "ann-warn", "attention": "ann-warn",
-    "danger": "ann-warn", "error": "ann-warn", "failure": "ann-warn", "bug": "ann-warn",
-    "example": "ann-example",
-    "quote": "ann-key", "cite": "ann-key", "question": "ann-key",
+    "tip": "ann ann-tip", "hint": "ann ann-tip", "success": "ann ann-tip", "check": "ann ann-tip",
+    "warning": "ann ann-warn", "caution": "ann ann-warn", "attention": "ann ann-warn",
+    "danger": "ann ann-warn", "error": "ann ann-warn", "failure": "ann ann-warn",
+    "bug": "ann ann-warn",
+    "example": "ann ann-example",
+    "quote": "ann ann-key", "cite": "ann ann-key", "question": "ann ann-key",
 }
 
 

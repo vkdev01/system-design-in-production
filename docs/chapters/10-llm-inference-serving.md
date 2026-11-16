@@ -74,7 +74,7 @@ $$
 $$
 
 An 8B model in FP16 is 16 GB; an H100 has ~3.35 TB/s of HBM3, so
-\(16/3350 \\approx 4.8\) ms/token, about **200 tokens/s for a single stream**, no
+\(16/3350 \approx 4.8\) ms/token, about **200 tokens/s for a single stream**, no
 matter how many tensor cores are idle. A 70B model at 140 GB is ~42 ms/token
 across 8 GPUs with tensor parallelism — roughly 24 tokens/s per stream.
 

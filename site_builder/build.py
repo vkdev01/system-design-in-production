@@ -21,7 +21,6 @@ from pathlib import Path
 
 import markdown
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from pygments.formatters import HtmlFormatter
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
@@ -164,6 +163,16 @@ SECTIONS = [
     },
 ]
 
+THEMES = [
+    {"id": "atlas", "label": "Violet", "swatch": "#6d28d9"},
+    {"id": "ink", "label": "Navy", "swatch": "#1f4e79"},
+    {"id": "moss", "label": "Moss", "swatch": "#3f6212"},
+    {"id": "cobalt", "label": "Cobalt", "swatch": "#1d4ed8"},
+    {"id": "rose", "label": "Rose", "swatch": "#a61e4d"},
+    {"id": "bronze", "label": "Bronze", "swatch": "#8a5a00"},
+    {"id": "wine", "label": "Wine", "swatch": "#9d2f3d"},
+]
+
 STATS = [
     ("09", "production systems"),
     ("17", "numbered figures"),
@@ -297,32 +306,112 @@ def diagram_kind(src: str) -> str:
     return "diagram"
 
 
-def add_figures(body: str) -> str:
-    """Wrap every diagram in a numbered plate figure, atlas style."""
+def find_div_end(s: str, start: int) -> int:
+    """Index just past the </div> that closes the <div> at `start`, or -1."""
+    i = start + 4
+    depth = 1
+    while depth > 0:
+        nxt_open = s.find("<div", i)
+        nxt_close = s.find("</div>", i)
+        if nxt_close == -1:
+            return -1
+        if nxt_open != -1 and nxt_open < nxt_close:
+            depth += 1
+            i = nxt_open + 4
+        else:
+            depth -= 1
+            i = nxt_close + 6
+    return i
+
+
+ADMON_CLASSES = {
+    "note": "ann", "info": "ann", "abstract": "ann", "summary": "ann", "tldr": "ann",
+    "tip": "ann-tip", "hint": "ann-tip", "success": "ann-tip", "check": "ann-tip",
+    "warning": "ann-warn", "caution": "ann-warn", "attention": "ann-warn",
+    "danger": "ann-warn", "error": "ann-warn", "failure": "ann-warn", "bug": "ann-warn",
+    "example": "ann-example",
+    "quote": "ann-key", "cite": "ann-key", "question": "ann-key",
+}
+
+
+def restyle_admonitions(body: str) -> str:
+    """pymdownx admonition markup -> the reference site's .ann callout cards."""
+    out, i = [], 0
+    while True:
+        j = body.find('<div class="admonition ', i)
+        if j == -1:
+            out.append(body[i:])
+            break
+        out.append(body[i:j])
+        m = re.match(r'<div class="admonition ([a-z]+)">', body[j:])
+        kind = m.group(1)
+        tag = m.group(0)
+        end = find_div_end(body, j)
+        if end == -1:
+            out.append(body[j:])
+            break
+        inner = body[j + len(tag):end - 6]
+        title = ""
+        tm = re.match(r'\s*<p class="admonition-title">(.*?)</p>', inner, re.S)
+        if tm:
+            title = tm.group(1)
+            inner = inner[tm.end():]
+        cls = ADMON_CLASSES.get(kind, "ann")
+        label = f"<b>{title}</b>" if title else ""
+        out.append(f'<div class="{cls}">{label}<div class="md">{inner.strip()}</div></div>')
+        i = end
+    return "".join(out)
+
+
+def wrap_code(pre: str, lang: str) -> str:
+    label = lang or "output"
+    return (
+        f'<div class="code"><div class="code-head"><span class="code-lang">{label}</span></div>'
+        f'{pre}<button class="code-copy" type="button">Copy</button></div>'
+    )
+
+
+def restyle_code(body: str) -> str:
+    body = re.sub(
+        r'<div class="language-([\w+#-]+) highlight">(<pre>.*?</pre>)</div>',
+        lambda m: wrap_code(m.group(2), m.group(1)),
+        body, flags=re.S,
+    )
+    body = re.sub(
+        r'<div class="highlight">(<pre>.*?</pre>)</div>',
+        lambda m: wrap_code(m.group(1), ""),
+        body, flags=re.S,
+    )
+    return body
+
+
+def wrap_tables(body: str) -> str:
+    return body.replace("<table>", '<div class="table-wrap"><table>').replace("</table>", "</table></div>")
+
+
+def add_figures(body: str) -> tuple[str, int]:
+    """Wrap every diagram in the reference site's .fig card, numbered per page."""
     counter = iter(range(1, 1000))
 
     def sub(m: re.Match) -> str:
         inner = m.group(1)
         n = next(counter)
+        kind = diagram_kind(html.unescape(inner))
         return (
-            f'<figure class="fig">{m.group(0)}'
-            f'<figcaption>Fig. {n} — {diagram_kind(html.unescape(inner))}</figcaption></figure>'
+            f'<figure class="fig mermaid-fig"><div class="mermaid-out">{m.group(0)}</div>'
+            f"<figcaption><span>Fig. {n}</span> <em>{kind}</em></figcaption></figure>"
         )
 
-    return re.sub(r'<pre class="mermaid">(.*?)</pre>', sub, body, flags=re.S)
+    body = re.sub(r'<pre class="mermaid">(.*?)</pre>', sub, body, flags=re.S)
+    return body, next(counter) - 1
 
 
-def add_code_lang(body: str) -> str:
-    """Pygments marks the language on the wrapper; expose it for a CSS tab."""
-    return re.sub(
-        r'<div class="language-([\w+#-]+) highlight">',
-        r'<div class="language-\1 highlight" data-lang="\1">',
-        body,
-    )
-
-
-def decorate(body: str) -> str:
-    return add_code_lang(add_figures(body))
+def decorate(body: str) -> tuple[str, int]:
+    body, figs = add_figures(body)
+    body = restyle_admonitions(body)
+    body = restyle_code(body)
+    body = wrap_tables(body)
+    return body, figs
 
 
 def plain_text(body_html: str) -> str:
@@ -349,18 +438,13 @@ def build() -> None:
     # static assets
     shutil.copytree(BUILDER / "assets", OUT / "assets")
 
-    # pygments: a light palette and a dark one, scoped by selector prefix
-    light = HtmlFormatter(style="friendly").get_style_defs(".highlight")
-    dark = HtmlFormatter(style="monokai").get_style_defs('[data-theme="dark"] .highlight')
-    (OUT / "assets" / "code.css").write_text(light + "\n" + dark)
-
     index_entries: list[dict] = []
     flat_pages: list[dict] = []
 
     # --- home ---
     home_src = (DOCS / "index.md").read_text()
     home_body, _, _ = convert(strip_title(home_src))
-    home_body = decorate(rewrite_links(home_body, "index.md", SITE["base"]))
+    home_body, _ = decorate(rewrite_links(home_body, "index.md", SITE["base"]))
 
     # --- pass 1: every page needs its url before any page renders (prev/next) ---
     for sec in SECTIONS:
@@ -369,6 +453,9 @@ def build() -> None:
             page["title"] = page.get("title") or title_of(text, page["src"])
             page["url"] = page["src"][:-3] + "/"
             page["section"] = sec["id"]
+            # the sidebar number column is 26px wide: chapters 01-09, foundations
+            # 01-03, appendices A-C. The card kicker can stay descriptive.
+            page["num"] = re.sub(r"^(Model|Plate)\s+", "", page.get("kicker", ""))
             page["section_label"] = sec["label"]
             page["prev"] = sec["pages"][i - 1] if i > 0 else None
             page["next"] = sec["pages"][i + 1] if i + 1 < len(sec["pages"]) else None
@@ -379,8 +466,11 @@ def build() -> None:
             src = DOCS / page["src"]
             text = src.read_text()
             body, toc_html, tokens = convert(strip_title(text))
-            body = decorate(rewrite_links(body, page["src"], SITE["base"]))
+            body, figs = decorate(rewrite_links(body, page["src"], SITE["base"]))
+            page["figs"] = figs
+            page["words"] = len(re.findall(r"\w+", plain_text(body)))
             page["toc"] = flatten_toc(tokens)
+            page["h2s"] = sum(1 for t in page["toc"] if t["level"] == 2)
             flat_pages.append(page)
 
             html_out = env.get_template("page.html").render(
@@ -389,6 +479,7 @@ def build() -> None:
                 page=page,
                 body=body,
                 section=sec,
+                themes=THEMES,
             )
             dest = OUT / page["url"] / "index.html"
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -410,12 +501,13 @@ def build() -> None:
         sections=SECTIONS,
         stats=STATS,
         body=home_body,
+        themes=THEMES,
     )
     (OUT / "index.html").write_text(home)
 
     # --- 404 ---
     (OUT / "404.html").write_text(
-        env.get_template("404.html").render(site=SITE, sections=SECTIONS)
+        env.get_template("404.html").render(site=SITE, sections=SECTIONS, themes=THEMES)
     )
 
     # --- search index ---

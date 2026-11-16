@@ -1,58 +1,102 @@
 {% extends "base.html" %}
 {% block title %}{{ page.title }} — {{ site.title }}{% endblock %}
 {% block description %}{{ page.blurb }}{% endblock %}
-{% block ogtitle %}{{ page.title }}{% endblock %}
 {% block canonical %}{{ page.url }}{% endblock %}
 
-{% block body %}
-<main class="article">
-  <div class="crumbs">
-    <a href="{{ site.base }}/">Index</a>
-    <span>/</span>
-    <a href="{{ site.base }}/{{ section.pages[0].url }}">{{ section.label }}</a>
+{% block shell %}
+<aside class="idx" id="idx">
+  <div class="kicker">{{ section.label }}</div>
+
+  <label class="search">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.6"></circle>
+      <path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+    </svg>
+    <input id="idx-search" placeholder="Filter {{ section.pages|length }} sections…" aria-label="Filter sections">
+  </label>
+
+  <a class="cta" href="{{ site.base }}/foundations/mental-models/">
+    <div class="row">
+      <span class="ic">◎</span>
+      <span>
+        <span class="t">Start with the mental models</span>
+        <span class="s">Nine ideas the other chapters derive from</span>
+      </span>
+      <span class="arw">→</span>
+    </div>
+  </a>
+
+  {% for sec in sections %}
+  <div class="group">{{ sec.label }}</div>
+  <ol>
+    {% for p in sec.pages %}
+    <li class="{% if p.url == page.url %}on{% endif %}" data-title="{{ p.title|lower }}">
+      <a class="item" href="{{ site.base }}/{{ p.url }}">
+        <span class="n">{{ p.num }}</span>
+        <span>{{ p.title }}</span>
+      </a>
+      {% if p.url == page.url and page.toc %}
+      <ul class="sub" id="sub">
+        {% for t in page.toc %}{% if t.level == 2 %}
+        <li><a href="#{{ t.id }}" data-h="{{ t.id }}">{{ t.name }}</a></li>
+        {% endif %}{% endfor %}
+      </ul>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% endfor %}
+
+  <div class="foot">
+    <a href="{{ site.repo }}" rel="noopener">Source on GitHub</a> · numbers from the original write-ups,
+    code and manifests in the repo.
+  </div>
+</aside>
+
+<div class="doc">
+  <div class="crumbrow">
+    <button class="menu idx-toggle" id="menu-btn" aria-controls="idx">☰ Contents</button>
+    <span class="path">
+      <a href="{{ site.base }}/">Index</a>
+      <span class="sep">/</span>
+      <a href="{{ site.base }}/{{ section.pages[0].url }}">{{ section.label }}</a>
+      <span class="sep">/</span>
+      <span class="here">{{ page.kicker }}</span>
+    </span>
   </div>
 
-  <header class="article__head">
-    <p class="eyebrow">
-      {% if page.meta %}Plate {{ page.kicker }} · {{ page.meta }} · {{ section.label }}
-      {% else %}Plate {{ page.kicker }} · {{ section.label }}{% endif %}
-    </p>
-    <h1 class="article__title">{{ page.title }}</h1>
-    <p class="article__lede">{{ page.blurb }}</p>
-  </header>
+  <div class="sechead">
+    <div class="eyebrow">
+      {% if page.meta %}{{ page.meta }} · {{ section.label }}{% else %}{{ section.label }} · {{ page.kicker }}{% endif %}
+    </div>
+    <h1>{{ page.title }}</h1>
+    <p class="abstract">{{ page.blurb }}</p>
+  </div>
 
-  <div class="pagegrid">
-    <article class="prose">
-      {{ body | safe }}
+  <div class="statrow">
+    <span><b>{{ page.h2s|default(0) }}</b> sections</span>
+    <span><b>{{ page.figs|default(0) }}</b> diagrams</span>
+    <span><b>{{ page.words|default(0) }}</b> words</span>
+    {% if page.prev %}<span><a href="{{ site.base }}/{{ page.prev.url }}">← {{ page.prev.title }}</a></span>{% endif %}
+  </div>
 
-      <nav class="pager" aria-label="Chapter navigation">
-        {% if page.prev %}
-        <a class="pager__link pager__link--prev" href="{{ site.base }}/{{ page.prev.url }}">
-          <span class="pager__dir">← Previous</span>
-          <span class="pager__name">{{ page.prev.title }}</span>
-        </a>
-        {% else %}<span></span>{% endif %}
-        {% if page.next %}
-        <a class="pager__link pager__link--next" href="{{ site.base }}/{{ page.next.url }}">
-          <span class="pager__dir">Next →</span>
-          <span class="pager__name">{{ page.next.title }}</span>
-        </a>
-        {% endif %}
-      </nav>
-    </article>
+  <div class="prose">
+    {{ body | safe }}
+  </div>
 
-    {% if page.toc %}
-    <aside class="rail">
-      <details class="rail__box" open>
-        <summary>Index</summary>
-        <nav class="rail__nav">
-          {% for t in page.toc %}
-          <a href="#{{ t.id }}" class="rail__link rail__link--l{{ t.level }}">{{ t.name }}</a>
-          {% endfor %}
-        </nav>
-      </details>
-    </aside>
+  <div class="pager">
+    {% if page.prev %}
+    <a class="prev" href="{{ site.base }}/{{ page.prev.url }}">
+      <small>Previous</small>
+      {{ page.prev.title }}
+    </a>
+    {% else %}<span></span>{% endif %}
+    {% if page.next %}
+    <a class="next" href="{{ site.base }}/{{ page.next.url }}">
+      <small>Next</small>
+      {{ page.next.title }}
+    </a>
     {% endif %}
   </div>
-</main>
+</div>
 {% endblock %}

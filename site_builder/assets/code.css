@@ -1,0 +1,17 @@
+/* Pygments token colours mapped onto the theme's code variables, so highlighted
+   code follows the active scheme exactly like the rest of the reference site. */
+.highlight .c, .highlight .c1, .highlight .cm, .highlight .cs, .highlight .ch { color: var(--code-com); font-style: italic; }
+.highlight .k, .highlight .kc, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr { color: var(--code-kw); font-weight: 500; }
+.highlight .kt { color: var(--code-type); }
+.highlight .s, .highlight .s1, .highlight .s2, .highlight .sb, .highlight .sc, .highlight .sd, .highlight .se,
+.highlight .sh, .highlight .si, .highlight .sx, .highlight .sr, .highlight .ss, .highlight .dl { color: var(--code-str); }
+.highlight .m, .highlight .mb, .highlight .mf, .highlight .mh, .highlight .mi, .highlight .mo, .highlight .il { color: var(--code-num); }
+.highlight .nf, .highlight .fm { color: var(--code-fn); font-weight: 600; }
+.highlight .nc, .highlight .nn, .highlight .ne, .highlight .nb, .highlight .bp, .highlight .no { color: var(--code-type); }
+.highlight .na, .highlight .nv, .highlight .vc, .highlight .vg, .highlight .vi, .highlight .nt, .highlight .nl { color: var(--code-type); }
+.highlight .o, .highlight .ow, .highlight .p { color: var(--ink-2); }
+.highlight .gd { background: var(--warm-soft); }
+.highlight .gi { background: var(--accent-2-soft); }
+.highlight .gh, .highlight .gu { color: var(--accent); font-weight: 600; }
+.highlight .ge { font-style: italic; }
+.highlight .gs { font-weight: 700; }

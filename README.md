@@ -49,10 +49,14 @@ python site_builder/build.py            # writes dist/
 SITE_BASE=/system-design-in-production python site_builder/build.py
 ```
 
-Layout: top navigation, a card-grid landing page, a centred reading column with a
-contents rail, always-dark code panels, light and dark themes, client-side search
-over a generated index, and Mermaid diagrams rendered from a vendored bundle (no
-CDN at runtime).
+The visual system is ported from
+[engineering-notes](https://github.com/vkdev01/engineering-notes) — the same
+Manrope + JetBrains Mono pairing, 17.5px/1.75 body, 300px numbered sidebar with
+filter and in-page section list, 800px reading measure, `.ann` callouts, `.code`
+cards with a language head, and the seven light colour schemes (violet, navy,
+moss, cobalt, rose, bronze, wine) switched by `data-theme` and remembered in
+localStorage. Fonts are self-hosted; Mermaid is vendored, so nothing loads from a
+third-party CDN at runtime.
 
 ## Repo layout
 

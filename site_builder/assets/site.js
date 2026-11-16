@@ -1,32 +1,79 @@
-/* System Design in Production — page behaviour.
-   No framework: theme, drawer, search, copy buttons, progress, TOC tracking. */
+/* Behaviour for the reference-site layout: colour schemes, sidebar filter,
+   contents tracking, code copy, mobile contents toggle, search. */
 (function () {
   'use strict';
 
   var base = (document.currentScript && document.currentScript.dataset.base) || '';
   var root = document.documentElement;
+  var KEY = 'tutorial-theme';
 
-  /* ---------- theme ---------- */
-  function setTheme(t) {
-    root.dataset.theme = t;
-    try { localStorage.setItem('sdip-theme', t); } catch (e) {}
-    document.dispatchEvent(new CustomEvent('sdip:theme', { detail: t }));
+  /* ---------- colour schemes ---------- */
+  var trigger = document.getElementById('theme-trigger');
+  var pop = document.getElementById('theme-pop');
+
+  function markActive(id) {
+    document.querySelectorAll('.theme-item').forEach(function (b) {
+      b.setAttribute('aria-checked', String(b.dataset.themeId === id));
+    });
+    var item = document.querySelector('.theme-item[data-theme-id="' + id + '"]');
+    var dot = item && item.querySelector('.theme-dot');
+    if (trigger && dot) trigger.style.setProperty('--dot', dot.style.background);
   }
-  var themeBtn = document.getElementById('theme');
-  if (themeBtn) {
-    themeBtn.addEventListener('click', function () {
-      setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark');
+
+  function setTheme(id) {
+    root.dataset.theme = id;
+    try { localStorage.setItem(KEY, id); } catch (e) {}
+    markActive(id);
+    document.dispatchEvent(new CustomEvent('sdip:theme', { detail: id }));
+  }
+
+  markActive(root.dataset.theme || 'atlas');
+
+  if (trigger && pop) {
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var open = pop.hasAttribute('hidden');
+      if (open) pop.removeAttribute('hidden'); else pop.setAttribute('hidden', '');
+      trigger.setAttribute('aria-expanded', String(open));
+    });
+    pop.addEventListener('click', function (e) {
+      var b = e.target.closest('.theme-item');
+      if (!b) return;
+      setTheme(b.dataset.themeId);
+      pop.setAttribute('hidden', '');
+      trigger.setAttribute('aria-expanded', 'false');
+    });
+    document.addEventListener('click', function (e) {
+      if (!pop.hasAttribute('hidden') && !pop.contains(e.target) && e.target !== trigger) {
+        pop.setAttribute('hidden', '');
+        trigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        pop.setAttribute('hidden', '');
+        trigger.setAttribute('aria-expanded', 'false');
+      }
     });
   }
 
-  /* ---------- mobile drawer ---------- */
-  var menu = document.getElementById('menu');
-  var drawer = document.getElementById('drawer');
-  if (menu && drawer) {
-    menu.addEventListener('click', function () {
-      var open = drawer.hasAttribute('hidden');
-      if (open) drawer.removeAttribute('hidden'); else drawer.setAttribute('hidden', '');
-      menu.setAttribute('aria-expanded', String(open));
+  /* ---------- mobile contents ---------- */
+  var idx = document.getElementById('idx');
+  ['idx-toggle', 'menu-btn'].forEach(function (id) {
+    var btn = document.getElementById(id);
+    if (btn && idx) btn.addEventListener('click', function () { idx.classList.toggle('open'); });
+  });
+
+  /* ---------- sidebar filter ---------- */
+  var filter = document.getElementById('idx-search');
+  if (filter && idx) {
+    filter.addEventListener('input', function () {
+      var q = filter.value.trim().toLowerCase();
+      idx.querySelectorAll('.idx li[data-title], .idx li').forEach(function (li) {
+        var title = li.getAttribute('data-title') || (li.textContent || '').toLowerCase();
+        var hit = !q || title.indexOf(q) >= 0;
+        li.style.display = hit ? '' : 'none';
+      });
     });
   }
 
@@ -42,103 +89,72 @@
     onScroll();
   }
 
-  /* ---------- copy buttons ---------- */
-  document.querySelectorAll('.prose .highlight, .prose pre').forEach(function (block) {
-    if (block.querySelector('.copybtn')) return;
-    var btn = document.createElement('button');
-    btn.className = 'copybtn';
-    btn.type = 'button';
-    btn.textContent = 'copy';
+  /* ---------- code copy ---------- */
+  document.querySelectorAll('.code').forEach(function (block) {
+    var btn = block.querySelector('.code-copy');
+    if (!btn) return;
     btn.addEventListener('click', function () {
-      var code = block.querySelector('code');
+      var code = block.querySelector('pre code');
       var text = code ? code.innerText : block.innerText;
       navigator.clipboard.writeText(text).then(function () {
-        btn.textContent = 'copied';
-        setTimeout(function () { btn.textContent = 'copy'; }, 1400);
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1400);
       });
     });
-    block.appendChild(btn);
   });
 
-  /* ---------- contents rail ---------- */
-  // On narrow screens the contents list would push the article off-screen, so
-  // it starts collapsed and expands on demand.
-  if (window.matchMedia('(max-width: 1080px)').matches) {
-    document.querySelectorAll('.rail__box').forEach(function (d) { d.open = false; });
-  }
-
-  /* ---------- contents rail: highlight the section you are in ---------- */
-  var railLinks = Array.prototype.slice.call(document.querySelectorAll('.rail__link'));
-  if (railLinks.length && 'IntersectionObserver' in window) {
-    var byId = {};
-    railLinks.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
-    var targets = Object.keys(byId)
-      .map(function (id) { return document.getElementById(id); })
-      .filter(Boolean);
-
-    var visible = new Set();
+  /* ---------- contents tracking ---------- */
+  var subs = Array.prototype.slice.call(document.querySelectorAll('.idx .sub a[data-h]'));
+  if (subs.length && 'IntersectionObserver' in window) {
+    var map = {};
+    subs.forEach(function (a) { map[a.dataset.h] = a; });
+    var heads = Object.keys(map).map(function (id) { return document.getElementById(id); }).filter(Boolean);
+    var seen = new Set();
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (e) {
-        if (e.isIntersecting) visible.add(e.target.id); else visible.delete(e.target.id);
+        if (e.isIntersecting) seen.add(e.target.id); else seen.delete(e.target.id);
       });
-      var firstVisible = targets.filter(function (t) { return visible.has(t.id); })[0];
-      railLinks.forEach(function (a) { a.classList.remove('is-active'); });
-      if (firstVisible) {
-        var link = byId[firstVisible.id];
-        if (link) link.classList.add('is-active');
-      }
-    }, { rootMargin: '-72px 0px -70% 0px', threshold: 0 });
-
-    targets.forEach(function (t) { io.observe(t); });
+      var first = heads.filter(function (h) { return seen.has(h.id); })[0];
+      subs.forEach(function (a) { a.classList.remove('on'); });
+      if (first && map[first.id]) map[first.id].classList.add('on');
+    }, { rootMargin: '-80px 0px -70% 0px', threshold: 0 });
+    heads.forEach(function (h) { io.observe(h); });
   }
 
   /* ---------- search ---------- */
-  var overlay = document.getElementById('search');
+  var modal = document.getElementById('search-modal');
   var input = document.getElementById('search-input');
   var results = document.getElementById('search-results');
   var index = null;
   var sel = -1;
 
-  function loadIndex() {
+  function load() {
     if (index) return Promise.resolve(index);
-    return fetch(base + '/search-index.json')
-      .then(function (r) { return r.json(); })
-      .then(function (data) { index = data; return index; });
+    return fetch(base + '/search-index.json').then(function (r) { return r.json(); }).then(function (d) { index = d; return d; });
   }
-
   function openSearch() {
-    if (!overlay) return;
-    overlay.removeAttribute('hidden');
-    loadIndex();
+    if (!modal) return;
+    modal.classList.add('is-open');
+    load();
     if (input) { input.value = ''; input.focus(); }
     render('');
   }
-
-  function closeSearch() {
-    if (!overlay) return;
-    overlay.setAttribute('hidden', '');
-  }
-
+  function closeSearch() { if (modal) modal.classList.remove('is-open'); }
   function esc(s) {
-    return s.replace(/[&<>"]/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-    });
+    return s.replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; });
   }
-
-  function snippet(text, q) {
+  function snip(text, q) {
     var i = text.toLowerCase().indexOf(q);
-    if (i < 0) return esc(text.slice(0, 130)) + '…';
+    if (i < 0) return esc(text.slice(0, 140)) + '…';
     var start = Math.max(0, i - 50);
-    var out = (start > 0 ? '…' : '') + esc(text.slice(start, start + 170)) + '…';
+    var out = (start > 0 ? '…' : '') + esc(text.slice(start, start + 180)) + '…';
     return out.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'i'), '<mark>$1</mark>');
   }
-
   function render(q) {
     if (!results) return;
     sel = -1;
-    if (!index) { results.innerHTML = '<p class="search__empty">Loading…</p>'; return; }
-    q = q.trim().toLowerCase();
-
+    if (!index) { results.innerHTML = '<p class="empty">Loading…</p>'; return; }
+    q = (q || '').trim().toLowerCase();
     var hits = index.map(function (p) {
       var score = 0;
       if (!q) score = 1;
@@ -155,34 +171,25 @@
       .slice(0, 12);
 
     if (!hits.length) {
-      results.innerHTML = '<p class="search__empty">No matches. Try “idempotency”, “hot partition”, “token bucket”, “H3”.</p>';
+      results.innerHTML = '<p class="empty">No matches. Try “idempotency”, “hot partition”, “token bucket”, “H3”.</p>';
       return;
     }
-
     results.innerHTML = hits.map(function (h, i) {
       var p = h.p;
-      var head = (p.h || []).filter(function (x) { return q && x.toLowerCase().indexOf(q) >= 0; })[0];
-      return '<a class="result" data-i="' + i + '" href="' + base + p.u + (head ? '#' + slug(head) : '') + '">' +
-        '<span class="result__sec">' + esc(p.s) + (p.k ? ' · ' + esc(p.k) : '') + '</span>' +
-        '<span class="result__title">' + esc(p.t) + '</span>' +
-        '<span class="result__snippet">' + (q ? snippet(p.b, q) : esc(p.b.slice(0, 130)) + '…') + '</span>' +
-        '</a>';
+      return '<a class="hit" data-i="' + i + '" href="' + base + p.u + '">' +
+        '<span class="sec">' + esc(p.s) + (p.k ? ' · ' + esc(p.k) : '') + '</span>' +
+        '<span class="t">' + esc(p.t) + '</span>' +
+        '<span class="s">' + (q ? snip(p.b, q) : esc(p.b.slice(0, 140)) + '…') + '</span></a>';
     }).join('');
   }
 
-  function slug(s) {
-    return s.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-  }
-
-  if (overlay) {
-    document.getElementById('search-open').addEventListener('click', openSearch);
-    overlay.addEventListener('click', function (e) {
+  if (modal) {
+    document.addEventListener('click', function (e) {
       if (e.target.hasAttribute('data-close')) closeSearch();
     });
-    input.addEventListener('input', function () { render(input.value); });
-
+    if (input) input.addEventListener('input', function () { render(input.value); });
     document.addEventListener('keydown', function (e) {
-      var open = !overlay.hasAttribute('hidden');
+      var open = modal.classList.contains('is-open');
       if ((e.key === '/' || (e.key === 'k' && (e.metaKey || e.ctrlKey))) && !open) {
         var tag = (document.activeElement.tagName || '').toLowerCase();
         if (tag === 'input' || tag === 'textarea') return;
@@ -190,17 +197,15 @@
       }
       if (!open) return;
       if (e.key === 'Escape') { closeSearch(); return; }
-      var items = results.querySelectorAll('.result');
+      var items = results.querySelectorAll('.hit');
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         if (!items.length) return;
         sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
-        items.forEach(function (el, i) { el.classList.toggle('is-sel', i === sel); });
+        items.forEach(function (el, i) { el.classList.toggle('sel', i === sel); });
         items[sel].scrollIntoView({ block: 'nearest' });
       }
-      if (e.key === 'Enter' && sel >= 0 && items[sel]) {
-        window.location.href = items[sel].getAttribute('href');
-      }
+      if (e.key === 'Enter' && sel >= 0 && items[sel]) window.location.href = items[sel].getAttribute('href');
     });
   }
 })();

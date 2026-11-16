@@ -1,95 +1,81 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="atlas">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}{{ site.title }}{% endblock %}</title>
 <meta name="description" content="{% block description %}{{ site.tagline }}{% endblock %}">
-<meta property="og:title" content="{% block ogtitle %}{{ site.title }}{% endblock %}">
-<meta property="og:type" content="article">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="light">
 <link rel="canonical" href="{{ site.url }}/{% block canonical %}{% endblock %}">
-<link rel="stylesheet" href="{{ site.base }}/assets/site.css">
+<link rel="stylesheet" href="{{ site.base }}/assets/fonts.css">
+<link rel="stylesheet" href="{{ site.base }}/assets/theme.css">
 <link rel="stylesheet" href="{{ site.base }}/assets/code.css">
+<link rel="stylesheet" href="{{ site.base }}/assets/extra.css">
 <script>
-  // set the theme before first paint so there is no flash
-  (function () {
-    try {
-      var t = localStorage.getItem('sdip-theme');
-      if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      document.documentElement.dataset.theme = t;
-    } catch (e) {}
-  })();
+  try { var t = localStorage.getItem('tutorial-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 </script>
 </head>
 <body>
 <div class="progress" id="progress" aria-hidden="true"></div>
 
 <header class="topbar">
-  <div class="topbar__inner">
-    <a class="wordmark" href="{{ site.base }}/">
-      <span class="wordmark__mark">SD</span>
-      <span class="wordmark__text">System Design <i>/</i> Production</span>
+  <div class="in">
+    <a class="brand" href="{{ site.base }}/">
+      <span class="glyph">SD</span>
+      <span>System Design in Production</span>
     </a>
+    <span class="tagline">nine production systems, rebuilt from first principles</span>
+    <span class="spacer"></span>
 
-    <nav class="topnav" aria-label="Sections">
-      <a href="{{ site.base }}/foundations/mental-models/">Foundations</a>
-      <a href="{{ site.base }}/chapters/01-chat-message-storage/">Chapters</a>
-      <a href="{{ site.base }}/appendices/k8s-aws-patterns/">Appendices</a>
-    </nav>
-
-    <div class="tools">
-      <button class="iconbtn" id="search-open" aria-label="Search (press /)" title="Search — press /">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"></circle><path d="M13.5 13.5 18 18"></path></svg>
+    <div class="theme-menu" id="theme-menu">
+      <button class="theme-trigger" id="theme-trigger" aria-haspopup="true" aria-expanded="false" aria-label="Colour scheme">
+        <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.2" fill="currentColor" opacity="0.18"></circle>
+          <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"></circle>
+          <path d="M8 1.8a6.2 6.2 0 0 1 0 12.4z" fill="currentColor"></path>
+        </svg>
       </button>
-      <button class="iconbtn" id="theme" aria-label="Toggle theme" title="Toggle light / dark">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="4.5"></circle><path d="M10 1v2.5M10 16.5V19M1 10h2.5M16.5 10H19M3.6 3.6l1.8 1.8M14.6 14.6l1.8 1.8M16.4 3.6l-1.8 1.8M5.4 14.6l-1.8 1.8"></path></svg>
-      </button>
-      <button class="iconbtn only-mobile" id="menu" aria-label="Open navigation" aria-expanded="false">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 5h16M2 10h16M2 15h16"></path></svg>
-      </button>
+      <div class="theme-pop" id="theme-pop" hidden>
+        <div class="theme-pop-head">Colour scheme</div>
+        {% for t in themes %}
+        <button class="theme-item" data-theme-id="{{ t.id }}" role="menuitemradio" aria-checked="false">
+          <span class="theme-dot" style="background: {{ t.swatch }}"></span>
+          <span class="theme-name">{{ t.label }}</span>
+          <span class="theme-check" aria-hidden="true">✓</span>
+        </button>
+        {% endfor %}
+      </div>
     </div>
-  </div>
 
-  <div class="drawer" id="drawer" hidden>
-    {% for sec in sections %}
-    <div class="drawer__group">
-      <p class="drawer__label">{{ sec.label }}</p>
-      {% for p in sec.pages %}
-      <a href="{{ site.base }}/{{ p.url }}">{{ p.kicker }} · {{ p.title }}</a>
-      {% endfor %}
-    </div>
-    {% endfor %}
+    <button class="tag quiet idx-toggle" id="idx-toggle" aria-label="Toggle contents">Contents</button>
+    <a class="tag" href="{{ site.base }}/chapters/01-chat-message-storage/">Start reading</a>
+    <span class="tag quiet">9 chapters · 3 appendices</span>
   </div>
 </header>
 
-{% block body %}{% endblock %}
+<div class="shell">
+  {% block shell %}{% endblock %}
+</div>
 
-<footer class="footer">
-  <div class="footer__inner">
-    <div>
-      <p class="footer__title">Engineering Atlas · Vol. 01 · Rev 2026.11</p>
-      <p class="footer__note">Nine published post-mortems, rebuilt as build-alongs. Numbers quoted from the
-        original write-ups; arithmetic shown so you can check it.</p>
-    </div>
-    <div class="footer__links">
-      <a href="{{ site.base }}/foundations/mental-models/">Foundations</a>
-      <a href="{{ site.base }}/appendices/drills/">Drills</a>
-      <a href="{{ site.base }}/appendices/sources/">Sources</a>
-      <a href="{{ site.repo }}" rel="noopener">GitHub ↗</a>
-    </div>
-  </div>
+<footer class="site">
+  Nine systems from Discord, Stripe, Airbnb, Notion, Figma, Slack and Uber, rebuilt from their
+  published post-mortems — numbers quoted from the originals, arithmetic shown so you can check it,
+  code and manifests in <code>code/</code> and <code>deploy/</code>.
+  · <a href="{{ site.repo }}" rel="noopener">Source on GitHub</a>
 </footer>
 
-<div class="search" id="search" hidden>
-  <div class="search__backdrop" data-close></div>
-  <div class="search__panel" role="dialog" aria-modal="true" aria-label="Search">
-    <div class="search__field">
-      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"></circle><path d="M13.5 13.5 18 18"></path></svg>
+<div class="search-modal" id="search-modal">
+  <div class="backdrop" data-close></div>
+  <div class="panel" role="dialog" aria-modal="true" aria-label="Search">
+    <div class="field">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.6"></circle>
+        <path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+      </svg>
       <input id="search-input" type="search" placeholder="Search the manual…" autocomplete="off" spellcheck="false">
       <kbd>esc</kbd>
     </div>
-    <div class="search__results" id="search-results"></div>
+    <div class="results" id="search-results"></div>
   </div>
 </div>
 

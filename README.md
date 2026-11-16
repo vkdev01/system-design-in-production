@@ -71,3 +71,16 @@ deploy/         Kubernetes manifests, Helm values, Terraform, docker-compose
 MIT. The prose in this repo is original; the numbers and the stories belong to
 the engineering teams that published them, and every chapter links back to the
 source.
+
+## Publishing the site
+
+The site is built by `.github/workflows/deploy.yml` and published with GitHub
+Actions. Pages must be switched on once for the repository:
+
+1. Repository **Settings → Pages**
+2. **Build and deployment → Source: GitHub Actions**
+3. Re-run the **Deploy site** workflow (Actions tab → Deploy site → Re-run jobs),
+   or push any commit.
+
+The published URL is `https://vkdev01.github.io/system-design-in-production/`.
+`mkdocs build --strict` is the gate CI uses; it must pass before a deploy runs.

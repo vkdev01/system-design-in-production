@@ -1,0 +1,43 @@
+# Chapter 01: ScyllaDB on EKS via the scylla-operator.
+# Local NVMe for latency, RAID-mirrored to a persistent disk for durability:
+# the "super disk" topology that produced the 15ms p99 in Discord's post.
+apiVersion: scylla.scylladb.com/v1
+kind: ScyllaCluster
+metadata:
+  name: messages
+  namespace: chat
+spec:
+  version: 6.2.0
+  agentVersion: 3.2.6
+  sysctls:
+    - fs.aio-max-nr=2097152
+  datacenter:
+    name: ap-south-1
+    racks:
+      - name: ap-south-1a
+        members: 3
+        storage:
+          capacity: 9Gi
+          storageClassName: local-nvme
+        resources:
+          requests: { cpu: "7", memory: 28Gi }
+          limits: { cpu: "7", memory: 28Gi }
+        placement:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: node.kubernetes.io/instance-type
+                      operator: In
+                      values: ["i4i.2xlarge"]
+---
+# The storage class for local NVMe. A DaemonSet (or the node bootstrap script)
+# must format and mount the instance store first; local disks are ephemeral, so
+# the RAID mirror to EBS is what makes the data survive a node replacement.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-nvme
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain

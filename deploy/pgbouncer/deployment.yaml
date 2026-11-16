@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbouncer-config
+  namespace: data
+data:
+  pgbouncer.ini: |
+    [databases]
+    notion_db_00 = host=notion-db-00.abc123.ap-south-1.rds.amazonaws.com dbname=notion
+    notion_db_01 = host=notion-db-01.abc123.ap-south-1.rds.amazonaws.com dbname=notion
+    [pgbouncer]
+    listen_addr = 0.0.0.0
+    listen_port = 6432
+    auth_type = scram-sha-256
+    auth_file = /etc/pgbouncer/userlist.txt
+    pool_mode = transaction
+    max_client_conn = 5000
+    default_pool_size = 25
+    reserve_pool_size = 10
+    query_wait_timeout = 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbouncer
+  namespace: data
+spec:
+  replicas: 8
+  selector:
+    matchLabels: { app: pgbouncer }
+  template:
+    metadata:
+      labels: { app: pgbouncer }
+    spec:
+      containers:
+        - name: pgbouncer
+          image: edoburu/pgbouncer:1.23.1
+          ports:
+            - { containerPort: 6432, name: pg }
+          resources:
+            requests: { cpu: 200m, memory: 128Mi }
+            limits: { memory: 256Mi }
+          readinessProbe:
+            tcpSocket: { port: 6432 }
+            initialDelaySeconds: 3
+          volumeMounts:
+            - { name: cfg, mountPath: /etc/pgbouncer }
+      volumes:
+        - name: cfg
+          configMap: { name: pgbouncer-config }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pgbouncer
+  namespace: data
+spec:
+  minAvailable: 6
+  selector:
+    matchLabels: { app: pgbouncer }

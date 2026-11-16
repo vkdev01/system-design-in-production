@@ -1,0 +1,37 @@
+# Chapter 01 on a laptop: one ScyllaDB node + the data service.
+#   docker compose -f deploy/compose/chat-storage.yml up --build
+services:
+  scylla:
+    image: scylladb/scylla:6.2
+    command: ["--smp", "1", "--memory", "1G", "--overprovisioned", "1", "--developer-mode", "1"]
+    ports: ["9042:9042"]
+    volumes:
+      - scylla-data:/var/lib/scylla
+      - ../../code/chat-storage/schema.cql:/schema.cql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe keyspaces' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  schema:
+    image: scylladb/scylla:6.2
+    depends_on:
+      scylla:
+        condition: service_healthy
+    entrypoint: ["cqlsh", "scylla", "-f", "/schema.cql"]
+    volumes:
+      - ../../code/chat-storage/schema.cql:/schema.cql:ro
+
+  dataservice:
+    build:
+      context: ../../code/chat-storage
+    environment:
+      SCYLLA_HOSTS: scylla
+    ports: ["8080:8080"]
+    depends_on:
+      scylla:
+        condition: service_healthy
+
+volumes:
+  scylla-data:

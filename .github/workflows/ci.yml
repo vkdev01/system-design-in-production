@@ -1,0 +1,34 @@
+name: Docs sanity
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Build docs strictly
+        run: mkdocs build --strict
+      - name: Validate YAML manifests and SQL files parse
+        run: |
+          pip install pyyaml
+          python - <<'PY'
+          import glob, sys, yaml
+          bad = []
+          for f in glob.glob("deploy/**/*.yaml", recursive=True) + glob.glob("deploy/**/*.yml", recursive=True):
+              try:
+                  list(yaml.safe_load_all(open(f)))
+              except Exception as e:
+                  bad.append((f, e))
+          print("checked", len(bad), "files with errors" if bad else "files, all valid")
+          for f, e in bad:
+              print("FAIL", f, e)
+          sys.exit(1 if bad else 0)
+          PY

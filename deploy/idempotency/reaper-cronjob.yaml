@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: idempotency-reaper
+  namespace: payments
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: reap
+              image: ghcr.io/example/payments-tools:1.8.0
+              command: ["/bin/sh", "-c"]
+              args:
+                - psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /sql/reap.sql
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef: { name: payments-db, key: primary-url }
+              resources:
+                requests: { cpu: 100m, memory: 128Mi }
+                limits: { memory: 256Mi }

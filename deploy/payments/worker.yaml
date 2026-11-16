@@ -1,0 +1,53 @@
+# Chapter 05: the repair loop. This is what makes at-least-once retries into
+# at-most-once money movement.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-repair
+  namespace: payments
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: payments-repair }
+  template:
+    metadata:
+      labels: { app: payments-repair }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      containers:
+        - name: repair
+          image: ghcr.io/example/payments-worker:3.1.0
+          args: ["repair", "--interval=5s", "--batch=200"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: payments-db, key: primary-url }
+            - { name: PROVIDER_TIMEOUT_MS, value: "2000" }
+            - { name: LEASE_SECONDS, value: "30" }
+          resources:
+            requests: { cpu: 200m, memory: 256Mi }
+            limits: { memory: 512Mi }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: payments-reconcile-daily
+  namespace: payments
+spec:
+  schedule: "30 2 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: reconcile
+              image: ghcr.io/example/payments-worker:3.1.0
+              args: ["reconcile", "--since=48h"]
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef: { name: payments-db, key: primary-url }

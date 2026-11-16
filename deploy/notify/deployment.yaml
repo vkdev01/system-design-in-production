@@ -1,0 +1,53 @@
+# Chapter 09: the fan-out worker.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notify-fanout
+  namespace: notify
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: notify-fanout }
+  template:
+    metadata:
+      labels: { app: notify-fanout }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      serviceAccountName: notify-fanout
+      containers:
+        - name: fanout
+          image: ghcr.io/example/notify:4.2.0
+          args:
+            - --buffer=8000
+            - --provider-inflight=100
+            - --provider-conns=4
+            - --max-attempts=4
+            - --shed-policy=drop-newest-low-priority
+          ports:
+            - { containerPort: 8080, name: http }
+            - { containerPort: 9090, name: metrics }
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef: { name: notify-redis, key: url }
+            - name: FCM_CREDENTIALS
+              valueFrom:
+                secretKeyRef: { name: fcm, key: json }
+          resources:
+            requests: { cpu: 500m, memory: 512Mi }
+            limits: { memory: 1Gi }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            periodSeconds: 5
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notify-fanout
+  namespace: notify
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels: { app: notify-fanout }

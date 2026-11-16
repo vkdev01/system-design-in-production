@@ -1,0 +1,69 @@
+# Chapter 07: gateway servers, per region, scaled on connection count.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gw
+  namespace: realtime
+spec:
+  replicas: 8
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 2 }
+  selector:
+    matchLabels: { app: gw }
+  template:
+    metadata:
+      labels: { app: gw }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      terminationGracePeriodSeconds: 45
+      containers:
+        - name: gw
+          image: ghcr.io/example/gateway:2.7.1
+          args: ["--region=ap-south-1", "--max-conns=60000", "--outbound-queue=256"]
+          ports:
+            - { containerPort: 8080, name: http }
+            - { containerPort: 9090, name: metrics }
+          resources:
+            requests: { cpu: "1", memory: 2Gi }
+            limits: { memory: 4Gi }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            periodSeconds: 5
+          lifecycle:
+            preStop:
+              exec: { command: ["/bin/sh", "-c", "sleep 20 && /app/drain"] }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gw
+  namespace: realtime
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gw
+  minReplicas: 8
+  maxReplicas: 60
+  metrics:
+    - type: Pods
+      pods:
+        metric: { name: gateway_active_connections }
+        target: { type: AverageValue, averageValue: "45000" }
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 900
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gw
+  namespace: realtime
+spec:
+  minAvailable: 7
+  selector:
+    matchLabels: { app: gw }

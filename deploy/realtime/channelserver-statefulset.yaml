@@ -1,0 +1,78 @@
+# Chapter 07: stateful ring members. Parallel pod management, one at a time for
+# disruptions, and a drain hook so channels are handed off before the pod dies.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cs
+  namespace: realtime
+spec:
+  serviceName: cs-headless
+  replicas: 12
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels: { app: cs }
+  template:
+    metadata:
+      labels: { app: cs }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      terminationGracePeriodSeconds: 45
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels: { app: cs }
+      containers:
+        - name: cs
+          image: ghcr.io/example/channelserver:2.7.1
+          args:
+            - --vnodes=160
+            - --history-window=500
+            - --ring-config=/etc/ring/ring.json
+            - --max-gateway-inflight=200
+          ports:
+            - { containerPort: 9090, name: metrics }
+            - { containerPort: 7000, name: grpc }
+          resources:
+            requests: { cpu: "2", memory: 6Gi }
+            limits: { memory: 8Gi }
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef: { fieldPath: metadata.name }
+          readinessProbe:
+            httpGet: { path: /ready, port: 9090 }
+            periodSeconds: 5
+          lifecycle:
+            preStop:
+              exec: { command: ["/bin/sh", "-c", "/app/drain --timeout=30s"] }
+          volumeMounts:
+            - { name: ring, mountPath: /etc/ring }
+      volumes:
+        - name: ring
+          configMap: { name: ring-config }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cs
+  namespace: realtime
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels: { app: cs }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cs-headless
+  namespace: realtime
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector: { app: cs }
+  ports:
+    - { port: 7000, name: grpc }

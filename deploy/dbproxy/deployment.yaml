@@ -1,0 +1,108 @@
+# Chapter 03: the routing proxy. The app keeps asking the same question.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shard-map
+  namespace: data
+data:
+  version: "2"
+  map.json: |
+    {
+      "version": 2,
+      "tables": {
+        "files":    { "shard_key": "file_id", "shards": 8 },
+        "comments": { "shard_key": "file_id", "shards": 8 },
+        "orgs":     { "shard_key": "org_id",  "shards": 4 }
+      },
+      "pools": {
+        "shard-00": "postgres://dbproxy@figma-files-00:5432/files",
+        "shard-01": "postgres://dbproxy@figma-files-01:5432/files",
+        "shard-02": "postgres://dbproxy@figma-files-02:5432/files",
+        "shard-03": "postgres://dbproxy@figma-files-03:5432/files"
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dbproxy
+  namespace: data
+spec:
+  replicas: 4
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels: { app: dbproxy }
+  template:
+    metadata:
+      labels: { app: dbproxy }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels: { app: dbproxy }
+      containers:
+        - name: dbproxy
+          image: ghcr.io/example/dbproxy:2.3.0
+          args:
+            - --shard-map-config=/etc/shardmap/map.json
+            - --query-timeout=250ms
+            - --max-conns-per-shard=40
+            - --require-routing-key=true
+          ports:
+            - { containerPort: 6432, name: pg }
+            - { containerPort: 9090, name: metrics }
+          resources:
+            requests: { cpu: "1", memory: 512Mi }
+            limits: { memory: 1Gi }
+          startupProbe:
+            httpGet: { path: /ready, port: 9090 }
+            failureThreshold: 30
+            periodSeconds: 2
+          readinessProbe:
+            httpGet: { path: /ready, port: 9090 }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /ready, port: 9090 }
+            periodSeconds: 10
+          volumeMounts:
+            - { name: shardmap, mountPath: /etc/shardmap }
+      volumes:
+        - name: shardmap
+          configMap: { name: shard-map }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dbproxy
+  namespace: data
+spec:
+  minAvailable: 3
+  selector:
+    matchLabels: { app: dbproxy }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dbproxy
+  namespace: data
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: dbproxy
+  minReplicas: 4
+  maxReplicas: 20
+  metrics:
+    - type: Pods
+      pods:
+        metric: { name: dbproxy_active_connections }
+        target: { type: AverageValue, averageValue: "120" }
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600

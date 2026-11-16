@@ -1,0 +1,73 @@
+# Chapter 06: the API with all four limiters wired in.
+# Readiness deliberately does NOT depend on Redis: a Redis blip must not remove
+# every pod from the load balancer.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: api
+spec:
+  replicas: 6
+  selector:
+    matchLabels: { app: api }
+  template:
+    metadata:
+      labels: { app: api }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/example/api:5.2.0
+          args:
+            - --ratelimit-rate=100
+            - --ratelimit-burst=500
+            - --ratelimit-timeout=20ms
+            - --ratelimit-fail-open=true
+            - --concurrency-limit=20
+          ports:
+            - { containerPort: 8080, name: http }
+            - { containerPort: 9090, name: metrics }
+          env:
+            - name: REDIS_ADDR
+              valueFrom:
+                secretKeyRef: { name: ratelimit-redis, key: endpoint }
+            - { name: RATELIMIT_KILL_SWITCH, value: "false" }
+          resources:
+            requests: { cpu: 500m, memory: 512Mi }
+            limits: { memory: 1Gi }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            periodSeconds: 5
+          lifecycle:
+            preStop:
+              exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api
+  namespace: api
+spec:
+  minAvailable: 4
+  selector:
+    matchLabels: { app: api }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api
+  namespace: api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api
+  minReplicas: 6
+  maxReplicas: 40
+  metrics:
+    - type: Pods
+      pods:
+        metric: { name: http_inflight_requests }
+        target: { type: AverageValue, averageValue: "30" }

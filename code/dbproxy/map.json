@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "tables": {
+    "files":    { "shard_key": "file_id", "shards": 8 },
+    "comments": { "shard_key": "file_id", "shards": 8 },
+    "orgs":     { "shard_key": "org_id",  "shards": 4 },
+    "users":    { "shard_key": "user_id", "shards": 16 }
+  },
+  "pools": {
+    "shard-00": "postgres://dbproxy@figma-files-00:5432/files",
+    "shard-01": "postgres://dbproxy@figma-files-01:5432/files",
+    "shard-07": "postgres://dbproxy@figma-files-07:5432/files"
+  }
+}

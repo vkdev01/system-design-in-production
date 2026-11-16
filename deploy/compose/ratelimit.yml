@@ -1,0 +1,19 @@
+# Chapter 06 on a laptop: Redis + an API that rate limits itself.
+#   docker compose -f deploy/compose/ratelimit.yml up --build
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    command: ["redis-server", "--appendonly", "no", "--maxmemory", "256mb",
+              "--maxmemory-policy", "volatile-lru"]
+
+  api:
+    build:
+      context: ../../code/ratelimit
+      dockerfile: Dockerfile
+    environment:
+      REDIS_ADDR: redis:6379
+      RATELIMIT_RATE: "100"
+      RATELIMIT_BURST: "500"
+    ports: ["8080:8080"]
+    depends_on: [redis]

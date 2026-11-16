@@ -1,0 +1,43 @@
+# The timeout budget from foundations/numbers.md, expressed as config.
+# Every hop's timeout is strictly smaller than its caller's.
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: payments
+  namespace: payments
+spec:
+  hosts: ["payments.payments.svc.cluster.local"]
+  http:
+    - match:
+        - method: { exact: POST }
+      timeout: 800ms
+      retries:
+        attempts: 2
+        perTryTimeout: 300ms
+        retryOn: "5xx,reset,connect-failure"
+      route:
+        - destination: { host: payments, port: { number: 8080 } }
+    - timeout: 300ms
+      retries:
+        attempts: 2
+        perTryTimeout: 100ms
+        retryOn: "5xx,reset"
+      route:
+        - destination: { host: payments, port: { number: 8080 } }
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: payments
+  namespace: payments
+spec:
+  host: payments
+  trafficPolicy:
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 30
+    connectionPool:
+      tcp: { maxConnections: 200 }
+      http: { http2MaxRequests: 500, maxRequestsPerConnection: 0 }
